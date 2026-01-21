@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>MTG Deck Builder（Main/Side タイル + 長押し減 + 保存 + PWA）</title>
+  <title>MTG Deck Builder（タブ分割：検索 / デッキ）</title>
 
   <!-- PWA / Mobile -->
   <meta name="theme-color" content="#0b0c10">
@@ -16,22 +16,32 @@
     :root { --bg:#0b0c10; --panel:#13151b; --text:#e7e7e7; --muted:#a8a8a8; --line:#242836; }
     body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, "Noto Sans JP", sans-serif; background:var(--bg); color:var(--text); }
     header { padding:14px 16px; border-bottom:1px solid var(--line); position:sticky; top:0; background:rgba(11,12,16,.92); backdrop-filter: blur(8px); z-index:10; }
-    .toolbar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+
+    /* Tabs */
+    .topbar { display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; }
+    .tabs { display:flex; gap:8px; }
+    .tabbtn {
+      padding:10px 12px; border-radius:12px; border:1px solid var(--line);
+      background:#121623; color:var(--text); cursor:pointer; font-weight:700;
+    }
+    .tabbtn[aria-selected="true"] { background:#1b2130; outline: 2px solid rgba(255,255,255,.10); }
+    .tabhint { font-size:12px; color:var(--muted); line-height:1.4; }
+
+    .toolbar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:10px; }
     input[type="text"], input[type="search"], input[type="text"].smallin {
       padding:10px 12px; border-radius:10px; border:1px solid var(--line); background:#0f1117; color:var(--text);
     }
-    input[type="text"]#q { flex:1; min-width: 280px; }
+    input[type="text"]#q { flex:1; min-width: 240px; }
     button, select {
       padding:10px 12px; border-radius:10px; border:1px solid var(--line); background:#171b25; color:var(--text); cursor:pointer;
     }
     button:hover { background:#1b2130; }
     label { display:flex; align-items:center; gap:8px; font-size:12px; color:var(--muted); user-select:none; }
-    .hint { font-size:12px; color:var(--muted); margin-top:8px; line-height:1.4; }
-    .row { display:flex; gap:12px; padding:12px; }
-    .col { background:var(--panel); border:1px solid var(--line); border-radius:12px; overflow:hidden; }
-    .left { flex: 1 1 auto; min-width: 0; }
-    .right { width: 460px; max-width: 52vw; }
+
+    .content { padding:12px; }
+    .panel { background:var(--panel); border:1px solid var(--line); border-radius:12px; overflow:hidden; }
     .status { padding:10px 12px; border-top:1px solid var(--line); color:var(--muted); font-size:12px; white-space:pre-wrap; }
+
     .grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap:10px; padding:12px; }
     .card { border:1px solid var(--line); border-radius:12px; overflow:hidden; background:#0f1117; display:flex; flex-direction:column; }
     .card img { width:100%; aspect-ratio: 0.714; object-fit: cover; background:#0b0c10; }
@@ -40,25 +50,24 @@
     .card .sub { font-size:12px; color:var(--muted); }
     .card .actions { display:flex; gap:6px; flex-wrap:wrap; }
 
+    /* Deck UI */
     .deck { padding:12px; display:flex; flex-direction:column; gap:12px; }
-    .deck h2 { margin:0; font-size:14px; color:var(--muted); font-weight:700; }
     .deckbar { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
     .deckbar .smallin { width: 180px; }
+    .pill { font-size:11px; color:var(--muted); border:1px solid var(--line); padding:4px 8px; border-radius:999px; }
 
     .boards { display:flex; gap:10px; }
     .board { flex:1; border:1px solid var(--line); border-radius:12px; background:#0f1117; overflow:hidden; min-width: 0; }
     .boardhead { padding:10px 10px; border-bottom:1px solid var(--line); display:flex; align-items:center; justify-content:space-between; gap:8px; }
     .boardhead .title { font-size:13px; color:var(--text); font-weight:700; }
     .boardhead .count { font-size:12px; color:var(--muted); font-variant-numeric: tabular-nums; }
-    .pill { font-size:11px; color:var(--muted); border:1px solid var(--line); padding:4px 8px; border-radius:999px; }
 
-    /* ===== タイル表示（添付イメージ寄せ） ===== */
     .tileWrap { padding:10px; }
     .tileGrid {
       display:grid;
-      grid-template-columns: repeat(auto-fill, minmax(86px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
       gap:8px;
-      max-height: 52vh;
+      max-height: 58vh;
       overflow:auto;
       padding-right: 4px;
     }
@@ -71,67 +80,50 @@
       cursor:pointer;
       user-select:none;
       -webkit-tap-highlight-color: transparent;
-      touch-action: manipulation; /* タップの遅延・ズーム誤爆を減らす */
+      touch-action: manipulation;
     }
-    .tile img {
-      width:100%;
-      aspect-ratio: 0.714;
-      object-fit: cover;
-      display:block;
-      background:#07080c;
-      pointer-events:none; /* 画像のドラッグを避ける */
-    }
+    .tile img { width:100%; aspect-ratio: 0.714; object-fit: cover; display:block; background:#07080c; pointer-events:none; }
     .badge {
-      position:absolute;
-      top:6px;
-      left:6px;
-      min-width: 24px;
-      padding:3px 6px;
-      border-radius:999px;
-      background:rgba(0,0,0,.7);
-      border:1px solid rgba(255,255,255,.18);
-      color:#fff;
-      font-size:12px;
-      font-weight:800;
-      text-align:center;
-      font-variant-numeric: tabular-nums;
-      pointer-events:none;
+      position:absolute; top:6px; left:6px; min-width: 24px; padding:3px 6px; border-radius:999px;
+      background:rgba(0,0,0,.7); border:1px solid rgba(255,255,255,.18); color:#fff; font-size:12px; font-weight:800;
+      text-align:center; font-variant-numeric: tabular-nums; pointer-events:none;
     }
-    .tile:hover { outline: 2px solid rgba(255,255,255,.12); }
     .tileFooter {
-      padding:6px 8px;
-      border-top:1px solid rgba(255,255,255,.06);
-      font-size:11px;
-      color:var(--muted);
-      white-space:nowrap;
-      overflow:hidden;
-      text-overflow:ellipsis;
-      background:rgba(0,0,0,.18);
-      pointer-events:none;
+      padding:6px 8px; border-top:1px solid rgba(255,255,255,.06);
+      font-size:11px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+      background:rgba(0,0,0,.18); pointer-events:none;
     }
-    .tileHelp {
-      font-size:11px;
-      color:var(--muted);
-      margin-top:8px;
-      line-height:1.35;
-    }
+    .tileHelp { font-size:11px; color:var(--muted); margin-top:8px; line-height:1.35; }
 
-    textarea { width:100%; height:130px; border-radius:10px; border:1px solid var(--line); background:#0f1117; color:var(--text); padding:10px; resize:vertical; }
-    .small { font-size:12px; color:var(--muted); }
+    textarea { width:100%; height:140px; border-radius:10px; border:1px solid var(--line); background:#0f1117; color:var(--text); padding:10px; resize:vertical; }
 
-    /* ===== モバイル時のレイアウト調整 ===== */
+    /* Views */
+    .view { display:none; }
+    .view.active { display:block; }
+
+    /* Mobile */
     @media (max-width: 980px) {
-      .row { flex-direction: column; }
-      .right { width: auto; max-width: none; }
       .boards { flex-direction: column; }
-      .tileGrid { max-height: 44vh; }
-      input[type="text"]#q { min-width: 200px; }
+      .tileGrid { max-height: 46vh; }
+      input[type="text"]#q { min-width: 180px; }
+      .topbar { gap:8px; }
     }
   </style>
 </head>
 <body>
 <header>
-  <div class="toolbar">
+  <div class="topbar">
+    <div class="tabs" role="tablist" aria-label="画面切替">
+      <button id="tabSearch" class="tabbtn" role="tab" aria-selected="true">検索</button>
+      <button id="tabDeck" class="tabbtn" role="tab" aria-selected="false">デッキ</button>
+    </div>
+    <div class="tabhint" id="tabHint">
+      検索でカードを見つけて追加 → デッキで枚数調整（タップ:+1 / 長押し:-1 / ダブルタップ:移動）
+    </div>
+  </div>
+
+  <!-- 検索ビュー専用ツールバー -->
+  <div id="searchToolbar" class="toolbar">
     <input id="q" type="text" placeholder='検索（例: tundra / bayou / 稲妻 / t:creature c:u ）' />
     <select id="order">
       <option value="name">並び: 名前</option>
@@ -140,77 +132,74 @@
     </select>
 
     <label><input id="preferJa" type="checkbox" checked> 日本語版を優先（あれば）</label>
-    <label><input id="collapseSame" type="checkbox"> 同名カードは1種類だけ表示（代表=最新印刷）</label>
+    <label><input id="collapseSame" type="checkbox"> 同名カードは1種類だけ（代表=最新印刷）</label>
 
     <button id="btnSearch">検索</button>
     <button id="btnClear">クリア</button>
   </div>
-
-  <div class="hint">
-    ・検索結果のカードは「Mainに追加 / Sideに追加」。<br>
-    ・右のMain/Sideはカード画像タイル表示。<b>タップ/クリックで+1</b>、<b>長押し(0.5秒) or 右クリックで-1</b>。<b>ダブルタップ/ダブルクリックでMain↔Side移動</b>。
-  </div>
 </header>
 
-<div class="row">
-  <section class="col left">
-    <div id="results" class="grid"></div>
-    <div id="status" class="status">待機中</div>
+<div class="content">
+  <!-- ===== View: Search ===== -->
+  <section id="viewSearch" class="view active">
+    <div class="panel">
+      <div id="results" class="grid"></div>
+      <div id="status" class="status">待機中</div>
+    </div>
   </section>
 
-  <aside class="col right">
-    <div class="deck">
-      <h2>デッキ</h2>
+  <!-- ===== View: Deck ===== -->
+  <section id="viewDeck" class="view">
+    <div class="panel">
+      <div class="deck">
+        <div class="deckbar">
+          <span class="pill">現在: <b id="currentDeckName">（未保存）</b></span>
+          <input id="deckName" class="smallin" type="text" placeholder="デッキ名（保存用）" />
+          <button id="btnSaveDeck">保存</button>
+          <select id="deckSelect"></select>
+          <button id="btnLoadDeck">読み込み</button>
+          <button id="btnDeleteDeck">削除</button>
+          <button id="btnNewDeck">新規</button>
+        </div>
 
-      <div class="deckbar">
-        <span class="pill">現在: <b id="currentDeckName">（未保存）</b></span>
-        <input id="deckName" class="smallin" type="text" placeholder="デッキ名（保存用）" />
-        <button id="btnSaveDeck">保存</button>
-        <select id="deckSelect"></select>
-        <button id="btnLoadDeck">読み込み</button>
-        <button id="btnDeleteDeck">削除</button>
-        <button id="btnNewDeck">新規</button>
-      </div>
-
-      <div class="boards">
-        <div class="board">
-          <div class="boardhead">
-            <div class="title">Main</div>
-            <div class="count"><span id="mainCount">0</span>枚</div>
+        <div class="boards">
+          <div class="board">
+            <div class="boardhead">
+              <div class="title">Main</div>
+              <div class="count"><span id="mainCount">0</span>枚</div>
+            </div>
+            <div class="tileWrap">
+              <div id="mainTiles" class="tileGrid"></div>
+              <div class="tileHelp">操作：タップ/クリック +1 ／ 長押し(0.5秒) or 右クリック -1 ／ ダブルタップで Sideへ移動</div>
+            </div>
           </div>
-          <div class="tileWrap">
-            <div id="mainTiles" class="tileGrid"></div>
-            <div class="tileHelp">操作：タップ/左クリック +1 ／ 長押し(0.5秒) or 右クリック -1 ／ ダブルタップで Sideへ移動</div>
+
+          <div class="board">
+            <div class="boardhead">
+              <div class="title">Side</div>
+              <div class="count"><span id="sideCount">0</span>枚</div>
+            </div>
+            <div class="tileWrap">
+              <div id="sideTiles" class="tileGrid"></div>
+              <div class="tileHelp">操作：タップ/クリック +1 ／ 長押し(0.5秒) or 右クリック -1 ／ ダブルタップで Mainへ移動</div>
+            </div>
           </div>
         </div>
 
-        <div class="board">
-          <div class="boardhead">
-            <div class="title">Side</div>
-            <div class="count"><span id="sideCount">0</span>枚</div>
-          </div>
-          <div class="tileWrap">
-            <div id="sideTiles" class="tileGrid"></div>
-            <div class="tileHelp">操作：タップ/左クリック +1 ／ 長押し(0.5秒) or 右クリック -1 ／ ダブルタップで Mainへ移動</div>
-          </div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+          <button id="btnExport" style="flex:1;">エクスポート</button>
+          <button id="btnClearBoards">Main/Side 全消し</button>
         </div>
-      </div>
-
-      <div class="small">エクスポート（コピー用）</div>
-      <textarea id="exportBox" placeholder="ここにデッキリストを出力（コピー用）"></textarea>
-      <div style="display:flex; gap:8px;">
-        <button id="btnExport" style="flex:1;">エクスポート</button>
-        <button id="btnClearBoards">Main/Side 全消し</button>
+        <textarea id="exportBox" placeholder="ここにデッキリストを出力（コピー用）"></textarea>
       </div>
     </div>
-  </aside>
+  </section>
 </div>
 
 <script>
 (() => {
   const $ = (id) => document.getElementById(id);
-
-  const STORE_KEY = "mtg_deck_store_v2_tiles_pwa";
+  const STORE_KEY = "mtg_deck_store_tabs_v1";
 
   const state = {
     results: [],
@@ -218,15 +207,39 @@
     deck: newEmptyDeck(""),
   };
 
+  /* ===== View switching ===== */
+  function setView(view) {
+    const isSearch = view === "search";
+    $("viewSearch").classList.toggle("active", isSearch);
+    $("viewDeck").classList.toggle("active", !isSearch);
+
+    $("tabSearch").setAttribute("aria-selected", String(isSearch));
+    $("tabDeck").setAttribute("aria-selected", String(!isSearch));
+
+    // 検索時だけ検索ツールバーを見せる（ヘッダがスッキリする）
+    $("searchToolbar").style.display = isSearch ? "flex" : "none";
+
+    // ハッシュ更新（戻る/進むで画面が戻る）
+    const nextHash = isSearch ? "#search" : "#deck";
+    if (location.hash !== nextHash) history.pushState(null, "", nextHash);
+  }
+
+  function syncViewFromHash() {
+    const h = (location.hash || "").toLowerCase();
+    if (h === "#deck") setView("deck");
+    else setView("search");
+  }
+
+  $("tabSearch").onclick = () => setView("search");
+  $("tabDeck").onclick = () => setView("deck");
+  window.addEventListener("popstate", syncViewFromHash);
+  window.addEventListener("hashchange", syncViewFromHash);
+
+  /* ===== helpers ===== */
   function setStatus(msg) { $("status").textContent = msg; }
 
   function newEmptyDeck(name) {
-    return {
-      name,
-      updatedAt: new Date().toISOString(),
-      main: {},
-      side: {},
-    };
+    return { name, updatedAt: new Date().toISOString(), main: {}, side: {} };
   }
 
   function loadStore() {
@@ -242,9 +255,7 @@
     }
   }
 
-  function saveStore(store) {
-    localStorage.setItem(STORE_KEY, JSON.stringify(store));
-  }
+  function saveStore(store) { localStorage.setItem(STORE_KEY, JSON.stringify(store)); }
 
   function refreshDeckSelect() {
     const store = loadStore();
@@ -268,8 +279,7 @@
     $("currentDeckName").textContent = name ? name : "（未保存）";
   }
 
-  // ===== Scryfall =====
-
+  /* ===== Scryfall ===== */
   function looksJapanese(s) { return /[\u3040-\u30FF\u4E00-\u9FFF]/.test(s); }
 
   function isAdvancedQuery(s) {
@@ -308,55 +318,43 @@
     return { ok: res.ok, data, status: res.status };
   }
 
-  function dateKey(released_at) {
-    return (released_at && typeof released_at === "string") ? released_at : "";
-  }
-
+  function dateKey(released_at) { return (released_at && typeof released_at === "string") ? released_at : ""; }
   function exactRank(cardName, query) {
     const a = (cardName || "").trim().toLowerCase();
     const q = (query || "").trim().toLowerCase();
     return a === q ? 0 : 1;
   }
 
-  // 同名（oracle_id）代表＝最新印刷（preferJa ONなら ja優先）
   function pickBestPrint(cards, query, preferJa) {
     let best = null;
-
     for (const c of cards) {
       if (!best) { best = c; continue; }
-
       if (preferJa) {
         const aj = (c.lang === "ja") ? 0 : 1;
         const bj = (best.lang === "ja") ? 0 : 1;
         if (aj !== bj) { if (aj < bj) best = c; continue; }
       }
-
       const ad = dateKey(c.released_at);
       const bd = dateKey(best.released_at);
       if (ad !== bd) { if (ad > bd) best = c; continue; }
-
       const ae = exactRank(c.name, query);
       const be = exactRank(best.name, query);
       if (ae !== be) { if (ae < be) best = c; continue; }
-
       const aKey = ((c.set||"") + "|" + (c.collector||"") + "|" + (c.id||"")).toLowerCase();
       const bKey = ((best.set||"") + "|" + (best.collector||"") + "|" + (best.id||"")).toLowerCase();
       if (aKey > bKey) best = c;
     }
-
     return best;
   }
 
   function applyCollapseSame(cards, query, preferJa, collapseSame) {
     if (!collapseSame) return cards;
-
     const groups = new Map();
     for (const c of cards) {
       const k = c.oracle_id || c.id;
       if (!groups.has(k)) groups.set(k, []);
       groups.get(k).push(c);
     }
-
     const picked = [];
     for (const arr of groups.values()) picked.push(pickBestPrint(arr, query, preferJa));
     return picked;
@@ -364,7 +362,6 @@
 
   function sortResults(cards, query, preferJa) {
     const qLower = (query || "").trim().toLowerCase();
-
     cards.sort((a, b) => {
       const ae = (a.name || "").toLowerCase() === qLower ? 0 : 1;
       const be = (b.name || "").toLowerCase() === qLower ? 0 : 1;
@@ -386,7 +383,6 @@
 
       return (a.set || "").localeCompare(b.set || "");
     });
-
     return cards;
   }
 
@@ -401,7 +397,6 @@
 
     const preferJa = $("preferJa").checked;
     const collapseSame = $("collapseSame").checked;
-
     setStatus("検索中…");
 
     if (isAdvancedQuery(s)) {
@@ -422,7 +417,6 @@
           return;
         }
       }
-
       state.results = [];
       renderResults();
       setStatus("見つかりませんでした");
@@ -446,6 +440,8 @@
       state.results = cards;
       renderResults();
       setStatus(`ヒット: ${cards.length}件\nq=${preferJa ? "lang:ja " + s + " + " + s : s}`);
+
+      // 検索→追加が目的なら、必要ならここで自動的に検索画面に留める（何もしない）
       return;
     }
 
@@ -454,11 +450,8 @@
     setStatus("見つかりませんでした");
   }
 
-  // ===== Deck（Main/Side） =====
-
-  function boardObj(board) {
-    return board === "side" ? state.deck.side : state.deck.main;
-  }
+  /* ===== Deck (Main/Side) ===== */
+  function boardObj(board) { return board === "side" ? state.deck.side : state.deck.main; }
 
   function addToBoard(board, card, delta = 1) {
     const obj = boardObj(board);
@@ -494,13 +487,8 @@
     renderDeck();
   }
 
-  function countBoard(obj) {
-    return Object.values(obj).reduce((sum, x) => sum + (x.qty || 0), 0);
-  }
-
-  function listEntries(obj) {
-    return Object.values(obj).sort((a,b) => (a.name||"").localeCompare(b.name||""));
-  }
+  function countBoard(obj) { return Object.values(obj).reduce((sum, x) => sum + (x.qty || 0), 0); }
+  function listEntries(obj) { return Object.values(obj).sort((a,b) => (a.name||"").localeCompare(b.name||"")); }
 
   function exportDeck() {
     const lines = [];
@@ -521,19 +509,16 @@
     $("exportBox").value = "";
   }
 
-  // ===== 保存/読み込み =====
-
+  /* ===== Save/Load ===== */
   function saveCurrentDeck() {
     const name = $("deckName").value.trim();
-    if (!name) { setStatus("デッキ名を入力してください（右側のデッキ名欄）"); return; }
-
+    if (!name) { setStatus("デッキ名を入力してください（デッキ画面）"); return; }
     const store = loadStore();
     const toSave = structuredClone(state.deck);
     toSave.name = name;
     toSave.updatedAt = new Date().toISOString();
     store.decks[name] = toSave;
     saveStore(store);
-
     setCurrentDeckName(name);
     refreshDeckSelect();
     setStatus(`保存しました: ${name}`);
@@ -543,14 +528,7 @@
     const store = loadStore();
     const d = store.decks[name];
     if (!d) { setStatus(`見つかりません: ${name}`); return; }
-
-    state.deck = {
-      name: d.name || name,
-      updatedAt: d.updatedAt || new Date().toISOString(),
-      main: d.main || {},
-      side: d.side || {}
-    };
-
+    state.deck = { name: d.name || name, updatedAt: d.updatedAt || new Date().toISOString(), main: d.main || {}, side: d.side || {} };
     setCurrentDeckName(name);
     $("deckName").value = name;
     renderDeck();
@@ -564,11 +542,7 @@
     saveStore(store);
     refreshDeckSelect();
     setStatus(`削除しました: ${name}`);
-
-    if (state.currentDeckName === name) {
-      setCurrentDeckName("");
-      $("deckName").value = "";
-    }
+    if (state.currentDeckName === name) { setCurrentDeckName(""); $("deckName").value = ""; }
   }
 
   function newDeck() {
@@ -580,8 +554,7 @@
     setStatus("新規デッキを作成しました");
   }
 
-  // ===== 描画（検索結果） =====
-
+  /* ===== Render results ===== */
   function renderResults() {
     const el = $("results");
     el.innerHTML = "";
@@ -630,23 +603,17 @@
     }
   }
 
-  // ===== タイル：スマホ対応（タップ＋長押し） =====
+  /* ===== Tiles (tap + long press) ===== */
   function attachTileInteractions(tile, boardName, cardId) {
     const LONG_PRESS_MS = 500;
-
     let pressTimer = null;
     let longPressed = false;
 
     const clearPress = () => {
-      if (pressTimer) {
-        clearTimeout(pressTimer);
-        pressTimer = null;
-      }
+      if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
     };
 
-    // pointerdown -> 長押し予約
-    tile.addEventListener("pointerdown", (e) => {
-      // 右クリックは contextmenu で処理するので、ここでは予約だけ
+    tile.addEventListener("pointerdown", () => {
       longPressed = false;
       clearPress();
       pressTimer = setTimeout(() => {
@@ -655,30 +622,22 @@
       }, LONG_PRESS_MS);
     });
 
-    // pointerup/cancel -> 予約解除
     tile.addEventListener("pointerup", () => clearPress());
     tile.addEventListener("pointercancel", () => clearPress());
     tile.addEventListener("pointerleave", () => clearPress());
 
-    // click -> 通常 +1（ただし長押し後のclickは無視）
     tile.addEventListener("click", (e) => {
       e.preventDefault();
-      if (longPressed) {
-        // 長押し発火後に click が来る端末があるので抑止
-        longPressed = false;
-        return;
-      }
+      if (longPressed) { longPressed = false; return; }
       changeQty(boardName, cardId, +1);
     });
 
-    // desktop右クリック -> -1
     tile.addEventListener("contextmenu", (e) => {
       e.preventDefault();
       clearPress();
       changeQty(boardName, cardId, -1);
     });
 
-    // ダブルクリック/ダブルタップ（ブラウザが dblclick を発火する前提） -> 移動
     tile.addEventListener("dblclick", (e) => {
       e.preventDefault();
       clearPress();
@@ -690,7 +649,7 @@
   function makeTile(boardName, it) {
     const tile = document.createElement("div");
     tile.className = "tile";
-    tile.title = `${it.qty}x ${it.name}\nタップ/左クリック:+1 / 長押し or 右クリック:-1 / ダブルタップ:移動`;
+    tile.title = `${it.qty}x ${it.name}\nタップ/クリック:+1 / 長押し or 右クリック:-1 / ダブルタップ:移動`;
 
     const img = document.createElement("img");
     img.alt = it.name;
@@ -707,17 +666,13 @@
     footer.textContent = it.name;
 
     attachTileInteractions(tile, boardName, it.id);
-
     tile.append(img, badge, footer);
     return tile;
   }
 
   function renderTiles(container, obj, boardName) {
     container.innerHTML = "";
-    const items = listEntries(obj);
-    for (const it of items) {
-      container.appendChild(makeTile(boardName, it));
-    }
+    for (const it of listEntries(obj)) container.appendChild(makeTile(boardName, it));
   }
 
   function renderDeck() {
@@ -727,7 +682,7 @@
     renderTiles($("sideTiles"), state.deck.side, "side");
   }
 
-  // ===== events =====
+  /* ===== events ===== */
   $("btnSearch").onclick = () => searchCards($("q").value);
   $("btnClear").onclick = () => { $("q").value = ""; state.results = []; renderResults(); setStatus("クリアしました"); };
   $("q").addEventListener("keydown", (e) => { if (e.key === "Enter") searchCards($("q").value); });
@@ -755,21 +710,23 @@
     newDeck();
   };
 
-  // init
+  /* ===== init ===== */
   refreshDeckSelect();
   setCurrentDeckName("");
   renderResults();
   renderDeck();
   setStatus("待機中");
+
+  // 初期ビュー（ハッシュに従う）
+  syncViewFromHash();
 })();
 </script>
 
-<!-- Service Worker 登録（PWA用：sw.jsを同階層に置く） -->
+<!-- Service Worker -->
 <script>
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("./sw.js").catch(() => {});
 }
 </script>
-
 </body>
 </html>
