@@ -5,115 +5,150 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>MTG Deck Builder</title>
 
-  <!-- PWA / Mobile -->
+  <!-- PWA -->
   <meta name="theme-color" content="#0b0c10">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="MTG Deck">
+  <meta name="apple-mobile-web-app-title" content="MTGアプリ">
   <link rel="manifest" href="manifest.webmanifest">
 
   <style>
-    :root { --bg:#0b0c10; --panel:#13151b; --text:#e7e7e7; --muted:#a8a8a8; --line:#242836; }
-    body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, "Noto Sans JP", sans-serif; background:var(--bg); color:var(--text); }
-    header { padding:14px 16px; border-bottom:1px solid var(--line); position:sticky; top:0; background:rgba(11,12,16,.92); backdrop-filter: blur(8px); z-index:10; }
-
-    /* Tabs */
-    .topbar { display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; }
-    .tabs { display:flex; gap:8px; }
-    .tabbtn {
-      padding:10px 12px; border-radius:12px; border:1px solid var(--line);
-      background:#121623; color:var(--text); cursor:pointer; font-weight:700;
+    :root{
+      --bg:#0b0c10;
+      --panel:#13151b;
+      --text:#e7e7e7;
+      --muted:#a8a8a8;
+      --line:#242836;
+      --chip:#151a26;
     }
-    .tabbtn[aria-selected="true"] { background:#1b2130; outline: 2px solid rgba(255,255,255,.10); }
-    .tabhint { font-size:12px; color:var(--muted); line-height:1.4; }
-
-    .content { padding:12px; }
-    .panel { background:var(--panel); border:1px solid var(--line); border-radius:12px; overflow:hidden; }
-    .status { padding:10px 12px; border-top:1px solid var(--line); color:var(--muted); font-size:12px; white-space:pre-wrap; }
-
-    input[type="text"], input[type="search"], input[type="text"].smallin {
-      padding:10px 12px; border-radius:10px; border:1px solid var(--line); background:#0f1117; color:var(--text);
+    *{ box-sizing:border-box; }
+    body{ margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, "Noto Sans JP", sans-serif; background:var(--bg); color:var(--text); }
+    header{
+      padding:14px 16px;
+      border-bottom:1px solid var(--line);
+      position:sticky; top:0;
+      background:rgba(11,12,16,.92);
+      backdrop-filter: blur(8px);
+      z-index:10;
     }
-    button, select {
-      padding:10px 12px; border-radius:10px; border:1px solid var(--line); background:#171b25; color:var(--text); cursor:pointer;
+    .topbar{ display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; }
+    .tabs{ display:flex; gap:8px; }
+    .tabbtn{
+      padding:10px 12px;
+      border-radius:12px;
+      border:1px solid var(--line);
+      background:#121623;
+      color:var(--text);
+      cursor:pointer;
+      font-weight:800;
     }
-    button:hover { background:#1b2130; }
-    label { display:flex; align-items:center; gap:8px; font-size:12px; color:var(--muted); user-select:none; }
+    .tabbtn[aria-selected="true"]{ background:#1b2130; outline:2px solid rgba(255,255,255,.10); }
 
-    .pill { font-size:11px; color:var(--muted); border:1px solid var(--line); padding:4px 8px; border-radius:999px; }
+    .hint{ font-size:12px; color:var(--muted); line-height:1.4; }
 
-    /* Search - grid cards (big) */
-    .grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap:10px; padding:12px; }
-    .card { border:1px solid var(--line); border-radius:12px; overflow:hidden; background:#0f1117; display:flex; flex-direction:column; }
-    .card img { width:100%; aspect-ratio: 0.714; object-fit: cover; background:#0b0c10; }
-    .card .meta { padding:10px; display:flex; flex-direction:column; gap:6px; }
-    .card .name { font-size:13px; line-height:1.25; }
-    .card .sub { font-size:12px; color:var(--muted); }
-    .card .actions { display:flex; gap:6px; flex-wrap:wrap; }
+    .toolbar{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:10px; }
+    input[type="text"], input[type="search"]{
+      padding:10px 12px;
+      border-radius:10px;
+      border:1px solid var(--line);
+      background:#0f1117;
+      color:var(--text);
+    }
+    input#q{ flex:1; min-width: 240px; }
+    select, button{
+      padding:10px 12px;
+      border-radius:10px;
+      border:1px solid var(--line);
+      background:#171b25;
+      color:var(--text);
+      cursor:pointer;
+    }
+    button:hover{ background:#1b2130; }
+    label{ display:flex; align-items:center; gap:8px; font-size:12px; color:var(--muted); user-select:none; }
 
-    /* Search - list rows (small image + name) */
-    .list { display:flex; flex-direction:column; gap:8px; padding:12px; }
-    .row {
+    .content{ padding:12px; }
+    .panel{ background:var(--panel); border:1px solid var(--line); border-radius:12px; overflow:hidden; }
+    .status{ padding:10px 12px; border-top:1px solid var(--line); color:var(--muted); font-size:12px; white-space:pre-wrap; }
+
+    /* Search results grid */
+    .grid{
       display:grid;
-      grid-template-columns: 56px 1fr auto;
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
       gap:10px;
-      align-items:center;
+      padding:12px;
+    }
+    .card{
+      border:1px solid var(--line);
+      border-radius:12px;
+      overflow:hidden;
+      background:#0f1117;
+      display:flex;
+      flex-direction:column;
+    }
+    .card img{ width:100%; aspect-ratio: 0.714; object-fit:cover; background:#0b0c10; }
+    .card .meta{ padding:10px; display:flex; flex-direction:column; gap:6px; }
+    .card .name{ font-size:13px; line-height:1.25; font-weight:800; }
+    .card .sub{ font-size:12px; color:var(--muted); }
+    .card .actions{ display:flex; gap:6px; flex-wrap:wrap; }
+
+    /* Views */
+    .view{ display:none; }
+    .view.active{ display:block; }
+
+    /* Deck */
+    .deckWrap{ padding:12px; display:flex; flex-direction:column; gap:12px; }
+    .deckTop{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; justify-content:space-between; }
+    .deckTopLeft{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    .pill{
+      font-size:11px;
+      color:var(--muted);
+      border:1px solid var(--line);
+      background:rgba(255,255,255,.03);
+      padding:4px 8px;
+      border-radius:999px;
+    }
+
+    .boards{ display:flex; gap:10px; }
+    .board{
+      flex:1;
       border:1px solid var(--line);
       border-radius:12px;
       background:#0f1117;
-      padding:8px;
+      overflow:hidden;
+      min-width:0;
     }
-    .row img {
-      width:56px; height:78px;
-      object-fit:cover;
-      border-radius:8px;
-      background:#0b0c10;
+    .boardHead{
+      padding:10px 10px;
+      border-bottom:1px solid var(--line);
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:8px;
     }
-    .row .rmeta { min-width:0; }
-    .row .rname {
-      font-size:14px; font-weight:700; line-height:1.2; margin-bottom:4px;
-      overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+    .boardHeadLeft{ display:flex; align-items:center; gap:10px; }
+    .chev{
+      width:34px; height:34px;
+      border-radius:10px;
+      border:1px solid var(--line);
+      background:#121623;
+      display:grid; place-items:center;
+      cursor:pointer;
+      font-weight:900;
+      user-select:none;
     }
-    .row .rsub {
-      font-size:12px; color:var(--muted);
-      overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
-    }
-    .row .ractions { display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end; }
-    .row .ractions button { padding:8px 10px; }
+    .boardTitle{ font-size:13px; font-weight:900; }
+    .boardCount{ font-size:12px; color:var(--muted); font-variant-numeric: tabular-nums; }
 
-    /* Deck UI */
-    .deck { padding:12px; display:flex; flex-direction:column; gap:12px; }
-    .deckbar { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
-
-    .boards { display:flex; gap:10px; }
-    .board { flex:1; border:1px solid var(--line); border-radius:12px; background:#0f1117; overflow:hidden; min-width:0; }
-    .boardhead {
-      padding:10px 10px; border-bottom:1px solid var(--line);
-      display:flex; align-items:center; justify-content:space-between; gap:8px;
-      cursor:pointer; user-select:none;
-    }
-    .boardhead .left { display:flex; gap:8px; align-items:center; }
-    .caret {
-      width:28px; height:28px; display:grid; place-items:center;
-      border:1px solid var(--line); border-radius:10px; background:#0b0c10; color:var(--text);
-      font-weight:900; line-height:1;
-    }
-    .boardhead .title { font-size:13px; color:var(--text); font-weight:800; }
-    .boardhead .count { font-size:12px; color:var(--muted); font-variant-numeric: tabular-nums; }
-
-    .tileWrap { padding:10px; display:block; }
-    .tileWrap.collapsed { display:none; }
-
-    /* 横6寄せやすく：min幅を少し下げる */
-    .tileGrid {
+    .tileWrap{ padding:10px; }
+    .tileGrid{
       display:grid;
-      grid-template-columns: repeat(auto-fill, minmax(48px, 1fr));
-      gap:5px;
-      max-height: 58vh;
+      grid-template-columns: repeat(auto-fill, minmax(78px, 1fr));
+      gap:6px;
+      max-height: min(58dvh, 58vh);
       overflow:auto;
       padding-right:4px;
     }
-    .tile {
+    .tile{
       position:relative;
       border:1px solid var(--line);
       border-radius:12px;
@@ -123,12 +158,19 @@
       user-select:none;
       -webkit-tap-highlight-color: transparent;
       touch-action: manipulation;
-      -webkit-touch-callout: none;
     }
-    .tile img { width:100%; aspect-ratio:0.714; object-fit:cover; display:block; background:#07080c; pointer-events:none; }
-    .badge {
+    .tile img{
+      width:100%;
+      aspect-ratio: 0.714;
+      object-fit: cover;
+      display:block;
+      background:#07080c;
+      pointer-events:none;
+    }
+    .badge{
       position:absolute;
-      top:4px; right:4px;
+      top:4px;
+      right:4px;
       min-width:18px;
       padding:2px 5px;
       border-radius:999px;
@@ -136,297 +178,312 @@
       border:1px solid rgba(255,255,255,.25);
       color:#fff;
       font-size:11px;
-      font-weight:700;
+      font-weight:800;
       text-align:center;
       font-variant-numeric: tabular-nums;
       pointer-events:none;
     }
+    .tileFooter{ display:none; } /* アプリ風：名前は基本出さない */
 
-    .tileHelp { font-size:11px; color:var(--muted); margin-top:8px; line-height:1.35; }
+    /* Mobile layout */
+    @media (max-width: 980px){
+      .boards{ flex-direction: column; }
+      .tileGrid{ max-height: min(46dvh, 46vh); grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); }
+      input#q{ min-width: 180px; }
+    }
 
-    /* Views */
-    .view { display:none; }
-    .view.active { display:block; }
-
-    /* Modal */
-    .modal {
+    /* ===== Modal (smartphone safe) ===== */
+    .modalOverlay{
       position: fixed;
       inset: 0;
       background: rgba(0,0,0,.55);
       display: none;
-      place-items: center;
-      padding: 14px;
-      z-index: 50;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      z-index: 1000;
     }
-    .modalInner {
-      width: min(520px, 96vw);
-      background: #121623;
-      border: 1px solid var(--line);
-      border-radius: 14px;
-      padding: 12px;
-    }
+    .modalOverlay.show{ display:flex; }
 
-    /* Card Action Modal */
-    .cardActionWrap{
-      display:flex; gap:12px; align-items:flex-start; flex-wrap:wrap;
-      margin-top:10px;
+    .modal{
+      width: min(920px, 100%);
+      max-height: min(86dvh, 86vh);
+      background: #10131a;
+      border: 1px solid rgba(255,255,255,.10);
+      border-radius: 18px;
+      overflow: hidden;
+      box-shadow: 0 20px 60px rgba(0,0,0,.55);
+      display: flex;
+      flex-direction: column;
     }
-    .previewImg{
-      width: 140px;
-      border-radius: 12px;
-      border:1px solid var(--line);
-      overflow:hidden;
-      background:#0b0c10;
+    .modalHeader{
+      padding: 12px 14px;
+      border-bottom: 1px solid rgba(255,255,255,.10);
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
       flex: 0 0 auto;
     }
-    .previewImg img{ width:100%; display:block; }
-    .actionCol{
-      flex: 1 1 220px;
-      min-width: 220px;
-      display:flex; flex-direction:column; gap:10px;
+    .modalTitle{ font-size:16px; font-weight:900; }
+    .modalClose{
+      border: 1px solid rgba(255,255,255,.12);
+      background: rgba(255,255,255,.06);
+      color: #fff;
+      border-radius: 12px;
+      padding: 8px 10px;
+      cursor:pointer;
     }
-    .bigName{ font-weight:800; font-size:15px; line-height:1.25; }
-    .smallMeta{ color:var(--muted); font-size:12px; }
-    .btnRow{ display:flex; gap:8px; flex-wrap:wrap; }
-    .btnRow button{ flex: 1 1 110px; }
+    .modalBody{
+      padding: 14px;
+      overflow: auto;
+      -webkit-overflow-scrolling: touch;
+      flex: 1 1 auto;
+    }
 
-    @media (max-width: 980px) {
-      .boards { flex-direction: column; }
-      .tileGrid { max-height: 46vh; grid-template-columns: repeat(auto-fill, minmax(46px, 1fr)); gap:5px; }
-      .row { grid-template-columns: 52px 1fr; }
-      .row .ractions { grid-column: 1 / -1; justify-content:flex-start; }
-      .row img { width:52px; height:72px; }
-      .previewImg{ width: 120px; }
+    @media (max-width: 980px){
+      .modalOverlay{
+        align-items: flex-end;
+        padding: 12px;
+      }
+      .modal{
+        max-height: min(88dvh, 88vh);
+        border-radius: 18px;
+      }
     }
+
+    /* Card modal layout */
+    .cardModalRow{
+      display:grid;
+      grid-template-columns: 120px 1fr;
+      gap: 14px;
+      align-items:start;
+    }
+    .cardModalRow img{
+      width:120px;
+      height:auto;
+      aspect-ratio: 0.714;
+      object-fit:cover;
+      border-radius:12px;
+      border:1px solid rgba(255,255,255,.08);
+      background:#07080c;
+    }
+    .cardModalMeta .big{
+      font-size:20px;
+      font-weight:900;
+      line-height:1.2;
+      margin-bottom:6px;
+    }
+    .cardModalMeta .small{
+      color:var(--muted);
+      font-size:12px;
+      margin-bottom:12px;
+    }
+    .btnGrid{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:10px;
+    }
+    .btnWide{ grid-column: 1 / -1; }
+    .note{
+      margin-top:10px;
+      font-size:12px;
+      color:var(--muted);
+      text-align:center;
+      line-height:1.4;
+    }
+
+    @media (max-width: 980px){
+      .cardModalRow{ grid-template-columns: 96px 1fr; }
+      .cardModalRow img{ width:96px; }
+      .cardModalMeta .big{ font-size:18px; }
+    }
+
+    .field{
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+      margin:10px 0;
+    }
+    .field input, .field select{
+      width:100%;
+    }
+    .hline{ height:1px; background:rgba(255,255,255,.08); margin:14px 0; }
   </style>
 </head>
-
 <body>
+
 <header>
   <div class="topbar">
     <div class="tabs" role="tablist" aria-label="画面切替">
       <button id="tabSearch" class="tabbtn" role="tab" aria-selected="true">検索</button>
       <button id="tabDeck" class="tabbtn" role="tab" aria-selected="false">デッキ</button>
     </div>
-    <div class="tabhint">
-      デッキ：カードをタップ→操作（+ / - / 移動）
-    </div>
+    <div class="hint">デッキ：カードをタップ → 操作（+ / - / 移動）</div>
+  </div>
+
+  <div id="searchToolbar" class="toolbar">
+    <input id="q" type="text" placeholder='検索（例: tundra / bayou / 稲妻 / t:creature c:u ）' />
+    <select id="order">
+      <option value="name">並び: 名前</option>
+      <option value="released">並び: 発売日</option>
+      <option value="set">並び: セット</option>
+    </select>
+    <label><input id="preferJa" type="checkbox" checked> 日本語版を優先（あれば）</label>
+    <label><input id="collapseSame" type="checkbox"> 同名カードは1種類だけ（代表=最新印刷）</label>
+    <button id="btnSearch">検索</button>
+    <button id="btnClear">クリア</button>
   </div>
 </header>
 
 <div class="content">
-
-  <!-- ===== View: Search ===== -->
+  <!-- ===== Search ===== -->
   <section id="viewSearch" class="view active">
-
-    <!-- Search: Form page -->
-    <div id="searchPageForm" class="panel">
-      <div class="status" style="border-top:none;">検索条件を入力して「検索」を押してください</div>
-
-      <div style="padding:12px; display:flex; flex-direction:column; gap:10px;">
-        <div style="display:flex; gap:8px; flex-wrap:wrap;">
-          <input id="q" type="text" placeholder='検索（例: tundra / bayou / 稲妻 / t:creature c:u ）' style="flex:1; min-width:220px;" />
-          <button id="btnSearch">検索</button>
-          <button id="btnClear">クリア</button>
-        </div>
-
-        <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
-          <label><input id="preferJa" type="checkbox" checked> 日本語版を優先（あれば）</label>
-          <label><input id="collapseSame" type="checkbox"> 同名カードは1種類だけ（代表=最新印刷）</label>
-
-          <label style="display:flex; gap:8px; align-items:center;">
-            並び:
-            <select id="order">
-              <option value="name">名前</option>
-              <option value="released">発売日</option>
-              <option value="set">セット</option>
-            </select>
-          </label>
-        </div>
-
-        <div class="status" id="statusForm" style="border-top:1px solid var(--line);">待機中</div>
-      </div>
-    </div>
-
-    <!-- Search: Results page -->
-    <div id="searchPageResults" class="panel" style="display:none;">
-      <div style="padding:10px 12px; border-bottom:1px solid var(--line); display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
-        <div style="display:flex; gap:8px; align-items:center;">
-          <button id="btnBackToForm">← 条件へ戻る</button>
-          <span class="pill">ヒット: <b id="hitCount">0</b></span>
-        </div>
-
-        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-          <span class="pill">表示</span>
-          <button id="viewModeGrid" class="tabbtn" style="padding:8px 10px;">グリッド</button>
-          <button id="viewModeList" class="tabbtn" style="padding:8px 10px;">リスト</button>
-        </div>
-      </div>
-
-      <div id="resultsGrid" class="grid"></div>
-      <div id="resultsList" class="list" style="display:none;"></div>
-
+    <div class="panel">
+      <div id="results" class="grid"></div>
       <div id="status" class="status">待機中</div>
     </div>
-
   </section>
 
-  <!-- ===== View: Deck ===== -->
+  <!-- ===== Deck ===== -->
   <section id="viewDeck" class="view">
     <div class="panel">
-      <div class="deck">
-
-        <div class="deckbar">
-          <span class="pill">現在: <b id="currentDeckName">（未保存）</b></span>
-
-          <label>並び
-            <select id="deckSort">
-              <option value="name">名前</option>
-              <option value="cmc">マナコスト</option>
-              <option value="type">タイプ</option>
+      <div class="deckWrap">
+        <div class="deckTop">
+          <div class="deckTopLeft">
+            <span class="pill">現在: <b id="currentDeckName">（未保存）</b></span>
+            <span class="pill">Main: <b id="mainCountTop">0</b></span>
+            <span class="pill">Side: <b id="sideCountTop">0</b></span>
+          </div>
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <select id="sortDeck">
+              <option value="name">並び（名前）</option>
+              <option value="released">並び（発売日）</option>
+              <option value="set">並び（セット）</option>
             </select>
-          </label>
-
-          <button id="btnDeckMenu" title="デッキ設定">⚙ 設定</button>
+            <button id="btnOpenSettings">⚙ 設定</button>
+          </div>
         </div>
 
         <div class="boards">
           <div class="board">
-            <div id="mainHead" class="boardhead" title="タップで開閉">
-              <div class="left">
-                <div id="mainCaret" class="caret">▼</div>
-                <div class="title">Main</div>
+            <div class="boardHead">
+              <div class="boardHeadLeft">
+                <div id="toggleMain" class="chev">▼</div>
+                <div class="boardTitle">Main</div>
               </div>
-              <div class="count"><span id="mainCount">0</span>枚</div>
+              <div class="boardCount"><span id="mainCount">0</span>枚</div>
             </div>
-            <div id="mainWrap" class="tileWrap">
+            <div id="mainBody" class="tileWrap">
               <div id="mainTiles" class="tileGrid"></div>
-              <div class="tileHelp">カードをタップ → 操作（+ / - / Sideへ）</div>
             </div>
           </div>
 
           <div class="board">
-            <div id="sideHead" class="boardhead" title="タップで開閉">
-              <div class="left">
-                <div id="sideCaret" class="caret">▼</div>
-                <div class="title">Side</div>
+            <div class="boardHead">
+              <div class="boardHeadLeft">
+                <div id="toggleSide" class="chev">▼</div>
+                <div class="boardTitle">Side</div>
               </div>
-              <div class="count"><span id="sideCount">0</span>枚</div>
+              <div class="boardCount"><span id="sideCount">0</span>枚</div>
             </div>
-            <div id="sideWrap" class="tileWrap">
+            <div id="sideBody" class="tileWrap">
               <div id="sideTiles" class="tileGrid"></div>
-              <div class="tileHelp">カードをタップ → 操作（+ / - / Mainへ）</div>
             </div>
           </div>
         </div>
 
-        <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
           <button id="btnClearBoards" style="flex:1;">Main/Side 全消し</button>
         </div>
-
-        <!-- ===== Deck Menu Modal ===== -->
-        <div id="deckModal" class="modal">
-          <div class="modalInner">
-            <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
-              <b>デッキ設定</b>
-              <button id="btnCloseDeckMenu">✕</button>
-            </div>
-
-            <div style="display:flex; flex-direction:column; gap:10px; margin-top:10px;">
-              <input id="deckName" class="smallin" type="text" placeholder="デッキ名（保存用）" />
-
-              <div style="display:flex; gap:8px; flex-wrap:wrap;">
-                <button id="btnSaveDeck">保存</button>
-                <button id="btnNewDeck">新規</button>
-              </div>
-
-              <select id="deckSelect"></select>
-
-              <div style="display:flex; gap:8px; flex-wrap:wrap;">
-                <button id="btnLoadDeck">読み込み</button>
-                <button id="btnDeleteDeck">削除</button>
-              </div>
-
-              <div class="status" style="margin-top:6px;">
-                ※エクスポート機能はいったん削除しました（必要なら後で復活できます）
-              </div>
-            </div>
-          </div>
-        </div>
-        <!-- ===== /Deck Menu Modal ===== -->
-
-        <!-- ===== Card Action Modal ===== -->
-        <div id="cardModal" class="modal">
-          <div class="modalInner">
-            <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
-              <b id="cardModalTitle">カード操作</b>
-              <button id="btnCloseCardModal">✕</button>
-            </div>
-
-            <div class="cardActionWrap">
-              <div class="previewImg">
-                <img id="cardModalImg" alt="">
-              </div>
-
-              <div class="actionCol">
-                <div class="bigName" id="cardModalName">—</div>
-                <div class="smallMeta" id="cardModalMeta">—</div>
-
-                <div class="btnRow">
-                  <button id="btnCardPlus">＋1</button>
-                  <button id="btnCardMinus">－1</button>
-                </div>
-
-                <div class="btnRow">
-                  <button id="btnCardMove">移動</button>
-                  <button id="btnCardOpen">Scryfall</button>
-                </div>
-
-                <div class="status" style="border-top:1px solid var(--line);">
-                  ここで操作すると、誤爆しにくいです。
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-        <!-- ===== /Card Action Modal ===== -->
-
+        <div class="status" id="deckStatus">ヒント：カードをタップして枚数を増減できます</div>
       </div>
     </div>
   </section>
+</div>
 
+<!-- ===== Card Operation Modal ===== -->
+<div id="cardModalOverlay" class="modalOverlay" aria-hidden="true">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="cardModalTitle">
+    <div class="modalHeader">
+      <div id="cardModalTitle" class="modalTitle">カード操作</div>
+      <button class="modalClose" id="closeCardModal">×</button>
+    </div>
+    <div class="modalBody" id="cardModalBody">
+      <!-- filled by JS -->
+    </div>
+  </div>
+</div>
+
+<!-- ===== Deck Settings Modal ===== -->
+<div id="settingsModalOverlay" class="modalOverlay" aria-hidden="true">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="settingsModalTitle">
+    <div class="modalHeader">
+      <div id="settingsModalTitle" class="modalTitle">デッキ設定</div>
+      <button class="modalClose" id="closeSettingsModal">×</button>
+    </div>
+    <div class="modalBody">
+      <div class="field">
+        <label style="color:var(--muted); font-size:12px;">デッキ名</label>
+        <input id="deckName" type="text" placeholder="例：テスト2" />
+      </div>
+
+      <div style="display:flex; gap:10px; flex-wrap:wrap;">
+        <button id="btnSaveDeck" style="flex:1;">保存</button>
+        <button id="btnNewDeck" style="flex:1;">新規</button>
+      </div>
+
+      <div class="hline"></div>
+
+      <div class="field">
+        <label style="color:var(--muted); font-size:12px;">保存済みデッキ</label>
+        <select id="deckSelect"></select>
+      </div>
+
+      <div style="display:flex; gap:10px; flex-wrap:wrap;">
+        <button id="btnLoadDeck" style="flex:1;">読み込み</button>
+        <button id="btnDeleteDeck" style="flex:1;">削除</button>
+      </div>
+
+      <div class="hline"></div>
+
+      <div style="display:flex; gap:10px; flex-wrap:wrap;">
+        <button id="btnCleanupZeros" style="flex:1;">0枚カードを掃除</button>
+      </div>
+
+      <div class="note">※エクスポート機能は必要なら復活できます</div>
+    </div>
+  </div>
 </div>
 
 <script>
 (() => {
   const $ = (id) => document.getElementById(id);
-
-  const STORE_KEY = "mtg_deck_store_tabs_v2";
-  const SEARCH_UI_KEY = "mtg_search_ui_v1";
-  const DECK_UI_KEY = "mtg_deck_ui_v1";
+  const STORE_KEY = "mtg_deck_store_v2";
 
   const state = {
     results: [],
-    currentDeckName: "",
+    nextPage: null,
     deck: newEmptyDeck(""),
-    deckUI: loadDeckUI(),
-
-    // Card action modal state
-    cardModal: { board: null, cardId: null },
+    currentDeckName: "",
+    openCard: null, // { board:"main"|"side", id:"..." }
+    boardCollapsed: { main:false, side:false }
   };
 
-  /* ===== View switching (Search / Deck) ===== */
-  function setView(view) {
+  /* ===== View switching ===== */
+  function setView(view){
     const isSearch = view === "search";
     $("viewSearch").classList.toggle("active", isSearch);
     $("viewDeck").classList.toggle("active", !isSearch);
+
     $("tabSearch").setAttribute("aria-selected", String(isSearch));
     $("tabDeck").setAttribute("aria-selected", String(!isSearch));
+    $("searchToolbar").style.display = isSearch ? "flex" : "none";
 
     const nextHash = isSearch ? "#search" : "#deck";
     if (location.hash !== nextHash) history.pushState(null, "", nextHash);
   }
-  function syncViewFromHash() {
+  function syncViewFromHash(){
     const h = (location.hash || "").toLowerCase();
     if (h === "#deck") setView("deck");
     else setView("search");
@@ -436,153 +493,68 @@
   window.addEventListener("popstate", syncViewFromHash);
   window.addEventListener("hashchange", syncViewFromHash);
 
-  /* ===== Search sub-pages + mode ===== */
-  const searchUI = loadSearchUI();
-
-  function loadSearchUI() {
-    try {
-      const raw = localStorage.getItem(SEARCH_UI_KEY);
-      const v = raw ? JSON.parse(raw) : {};
-      return { page: v.page || "form", mode: v.mode || "grid" };
-    } catch {
-      return { page:"form", mode:"grid" };
-    }
-  }
-  function saveSearchUI() { localStorage.setItem(SEARCH_UI_KEY, JSON.stringify(searchUI)); }
-
-  function setSearchPage(page) {
-    searchUI.page = page; saveSearchUI();
-    $("searchPageForm").style.display = (page === "form") ? "block" : "none";
-    $("searchPageResults").style.display = (page === "results") ? "block" : "none";
-  }
-
-  function setResultsMode(mode) {
-    searchUI.mode = mode; saveSearchUI();
-    const isGrid = mode === "grid";
-    $("resultsGrid").style.display = isGrid ? "grid" : "none";
-    $("resultsList").style.display = isGrid ? "none" : "flex";
-    $("viewModeGrid").setAttribute("aria-selected", String(isGrid));
-    $("viewModeList").setAttribute("aria-selected", String(!isGrid));
-  }
-
-  /* ===== Deck UI state (accordion) ===== */
-  function loadDeckUI(){
-    try{
-      const raw = localStorage.getItem(DECK_UI_KEY);
-      const v = raw ? JSON.parse(raw) : {};
-      return {
-        mainOpen: (v.mainOpen ?? true),
-        sideOpen: (v.sideOpen ?? true),
-      };
-    }catch{
-      return { mainOpen:true, sideOpen:true };
-    }
-  }
-  function saveDeckUI(){
-    localStorage.setItem(DECK_UI_KEY, JSON.stringify(state.deckUI));
-  }
-
-  function applyAccordion(){
-    const mainOpen = !!state.deckUI.mainOpen;
-    const sideOpen = !!state.deckUI.sideOpen;
-
-    $("mainWrap").classList.toggle("collapsed", !mainOpen);
-    $("sideWrap").classList.toggle("collapsed", !sideOpen);
-
-    $("mainCaret").textContent = mainOpen ? "▼" : "▶";
-    $("sideCaret").textContent = sideOpen ? "▼" : "▶";
-  }
-
-  /* ===== helpers ===== */
-  function setStatus(msg) {
+  function setStatus(msg){
     $("status").textContent = msg;
-    const sf = $("statusForm");
-    if (sf) sf.textContent = msg;
+    const ds = $("deckStatus");
+    if (ds) ds.textContent = msg;
   }
 
-  function newEmptyDeck(name) {
-    return { name, updatedAt: new Date().toISOString(), main: {}, side: {} };
-  }
-
-  function loadStore() {
-    try {
+  /* ===== Storage ===== */
+  function loadStore(){
+    try{
       const raw = localStorage.getItem(STORE_KEY);
-      if (!raw) return { version: 1, decks: {} };
-      const s = JSON.parse(raw);
-      if (!s || typeof s !== "object") return { version: 1, decks: {} };
-      if (!s.decks) s.decks = {};
-      return s;
-    } catch {
-      return { version: 1, decks: {} };
+      if (!raw) return { version:2, decks:{} };
+      const obj = JSON.parse(raw);
+      if (!obj || typeof obj !== "object") return { version:2, decks:{} };
+      if (!obj.decks) obj.decks = {};
+      return obj;
+    }catch{
+      return { version:2, decks:{} };
     }
   }
-  function saveStore(store) { localStorage.setItem(STORE_KEY, JSON.stringify(store)); }
+  function saveStore(store){ localStorage.setItem(STORE_KEY, JSON.stringify(store)); }
 
-  function refreshDeckSelect() {
+  function refreshDeckSelect(){
     const store = loadStore();
     const sel = $("deckSelect");
     sel.innerHTML = "";
     const names = Object.keys(store.decks).sort((a,b)=>a.localeCompare(b));
+
     const opt0 = document.createElement("option");
     opt0.value = "";
     opt0.textContent = "保存デッキを選択…";
     sel.appendChild(opt0);
-    for (const n of names) {
+
+    for (const n of names){
       const opt = document.createElement("option");
       opt.value = n;
       opt.textContent = n;
       sel.appendChild(opt);
     }
   }
-  function setCurrentDeckName(name) {
-    state.currentDeckName = name;
-    $("currentDeckName").textContent = name ? name : "（未保存）";
+
+  function newEmptyDeck(name){
+    return { name, updatedAt: new Date().toISOString(), main:{}, side:{} };
   }
 
-  /* ===== Modal (Deck Menu) ===== */
-  function openDeckMenu() { $("deckModal").style.display = "grid"; }
-  function closeDeckMenu() { $("deckModal").style.display = "none"; }
-
-  /* ===== Modal (Card Action) ===== */
-  function openCardModal(board, cardId) {
-    state.cardModal.board = board;
-    state.cardModal.cardId = cardId;
-
-    const obj = boardObj(board);
-    const it = obj[cardId];
-    if (!it) return;
-
-    $("cardModalTitle").textContent = (board === "main") ? "Mainのカード操作" : "Sideのカード操作";
-    $("cardModalName").textContent = `${it.qty}x ${it.name}`;
-    $("cardModalMeta").textContent = `${it.set}${it.collector ? " #" + it.collector : ""}${it.lang ? " / " + it.lang : ""}${it.released_at ? " / " + it.released_at : ""}`;
-
-    $("cardModalImg").src = it.image || "";
-    $("cardModalImg").alt = it.name;
-
-    $("btnCardMove").textContent = (board === "main") ? "Sideへ移動" : "Mainへ移動";
-
-    $("cardModal").style.display = "grid";
-  }
-  function closeCardModal() {
-    $("cardModal").style.display = "none";
-    state.cardModal.board = null;
-    state.cardModal.cardId = null;
+  function setCurrentDeckName(name){
+    state.currentDeckName = name || "";
+    $("currentDeckName").textContent = state.currentDeckName ? state.currentDeckName : "（未保存）";
   }
 
   /* ===== Scryfall ===== */
-  function looksJapanese(s) { return /[\u3040-\u30FF\u4E00-\u9FFF]/.test(s); }
-  function isAdvancedQuery(s) {
+  function looksJapanese(s){ return /[\u3040-\u30FF\u4E00-\u9FFF]/.test(s); }
+  function isAdvancedQuery(s){
     return /(^|\s)(t:|c:|o:|oracle:|f:|format:|lang:|is:|set:|cn:|rarity:|type:|pow|tou|cmc)\b/i.test(s) || /[:"]/g.test(s);
   }
-  function getCardImage(card) {
+  function getCardImage(card){
     if (card.image_uris?.normal) return card.image_uris.normal;
     if (Array.isArray(card.card_faces)) {
       for (const f of card.card_faces) if (f.image_uris?.normal) return f.image_uris.normal;
     }
     return "";
   }
-
-  function normalizeCard(card) {
+  function normalizeCard(card){
     return {
       id: card.id,
       oracle_id: card.oracle_id,
@@ -592,62 +564,49 @@
       lang: card.lang || "",
       released_at: card.released_at || "",
       scryfall_uri: card.scryfall_uri,
-      image: getCardImage(card),
-
-      cmc: (typeof card.cmc === "number") ? card.cmc : 999,
-      mana_cost: card.mana_cost || "",
-      type_line: card.type_line || ""
+      image: getCardImage(card)
     };
   }
-
-  async function fetchSearch(q) {
+  async function fetchSearch(q){
     const url = new URL("https://api.scryfall.com/cards/search");
     url.searchParams.set("q", q);
     url.searchParams.set("unique", "prints");
     url.searchParams.set("order", $("order").value);
-    const res = await fetch(url.toString(), { headers: { "Accept": "application/json" } });
-    const data = await res.json().catch(() => ({}));
+    const res = await fetch(url.toString(), { headers:{ "Accept":"application/json" } });
+    const data = await res.json().catch(()=>({}));
     return { ok: res.ok, data, status: res.status };
   }
-
-  function dateKey(released_at) { return (released_at && typeof released_at === "string") ? released_at : ""; }
-
-  function exactRank(cardName, query) {
-    const a = (cardName || "").trim().toLowerCase();
-    const q = (query || "").trim().toLowerCase();
+  function dateKey(d){ return (d && typeof d === "string") ? d : ""; }
+  function exactRank(name, query){
+    const a = (name||"").trim().toLowerCase();
+    const q = (query||"").trim().toLowerCase();
     return a === q ? 0 : 1;
   }
-
-  function pickBestPrint(cards, query, preferJa) {
+  function pickBestPrint(cards, query, preferJa){
     let best = null;
-    for (const c of cards) {
-      if (!best) { best = c; continue; }
-
-      if (preferJa) {
+    for (const c of cards){
+      if (!best){ best = c; continue; }
+      if (preferJa){
         const aj = (c.lang === "ja") ? 0 : 1;
         const bj = (best.lang === "ja") ? 0 : 1;
-        if (aj !== bj) { if (aj < bj) best = c; continue; }
+        if (aj !== bj){ if (aj < bj) best = c; continue; }
       }
-
       const ad = dateKey(c.released_at);
       const bd = dateKey(best.released_at);
-      if (ad !== bd) { if (ad > bd) best = c; continue; } // latest
-
+      if (ad !== bd){ if (ad > bd) best = c; continue; }
       const ae = exactRank(c.name, query);
       const be = exactRank(best.name, query);
-      if (ae !== be) { if (ae < be) best = c; continue; }
-
+      if (ae !== be){ if (ae < be) best = c; continue; }
       const aKey = ((c.set||"") + "|" + (c.collector||"") + "|" + (c.id||"")).toLowerCase();
       const bKey = ((best.set||"") + "|" + (best.collector||"") + "|" + (best.id||"")).toLowerCase();
       if (aKey > bKey) best = c;
     }
     return best;
   }
-
-  function applyCollapseSame(cards, query, preferJa, collapseSame) {
+  function applyCollapseSame(cards, query, preferJa, collapseSame){
     if (!collapseSame) return cards;
     const groups = new Map();
-    for (const c of cards) {
+    for (const c of cards){
       const k = c.oracle_id || c.id;
       if (!groups.has(k)) groups.set(k, []);
       groups.get(k).push(c);
@@ -656,259 +615,199 @@
     for (const arr of groups.values()) picked.push(pickBestPrint(arr, query, preferJa));
     return picked;
   }
-
-  function sortResults(cards, query, preferJa) {
-    const qLower = (query || "").trim().toLowerCase();
-    cards.sort((a, b) => {
-      const ae = (a.name || "").toLowerCase() === qLower ? 0 : 1;
-      const be = (b.name || "").toLowerCase() === qLower ? 0 : 1;
+  function sortResults(cards, query, preferJa){
+    const qLower = (query||"").trim().toLowerCase();
+    cards.sort((a,b)=>{
+      const ae = (a.name||"").toLowerCase() === qLower ? 0 : 1;
+      const be = (b.name||"").toLowerCase() === qLower ? 0 : 1;
       if (ae !== be) return ae - be;
 
-      if (preferJa) {
+      if (preferJa){
         const aj = (a.lang === "ja") ? 0 : 1;
         const bj = (b.lang === "ja") ? 0 : 1;
         if (aj !== bj) return aj - bj;
       }
 
-      const an = (a.name || "").toLowerCase();
-      const bn = (b.name || "").toLowerCase();
+      const an = (a.name||"").toLowerCase();
+      const bn = (b.name||"").toLowerCase();
       if (an !== bn) return an.localeCompare(bn);
 
       const ad = dateKey(a.released_at);
       const bd = dateKey(b.released_at);
       if (ad !== bd) return bd.localeCompare(ad);
 
-      return (a.set || "").localeCompare(b.set || "");
+      return (a.set||"").localeCompare(b.set||"");
     });
     return cards;
   }
 
-  async function searchCards(rawInput) {
+  async function searchCards(rawInput){
     const s = rawInput.trim();
-    if (!s) {
+    if (!s){
       state.results = [];
       renderResults();
       setStatus("検索ワードを入力してください");
-      setSearchPage("form");
       return;
     }
-
     const preferJa = $("preferJa").checked;
     const collapseSame = $("collapseSame").checked;
 
     setStatus("検索中…");
 
-    // Advanced query
-    if (isAdvancedQuery(s)) {
+    if (isAdvancedQuery(s)){
       const queries = (preferJa && looksJapanese(s) && !/(^|\s)lang:/i.test(s))
         ? [`lang:ja ${s}`, s]
         : [s];
 
-      for (const q of queries) {
+      for (const q of queries){
         const r = await fetchSearch(q);
         const arr = Array.isArray(r.data?.data) ? r.data.data : [];
-        if (arr.length > 0) {
+        if (arr.length > 0){
           let cards = arr.map(normalizeCard);
           cards = applyCollapseSame(cards, s, preferJa, collapseSame);
           cards = sortResults(cards, s, preferJa);
           state.results = cards;
           renderResults();
           setStatus(`ヒット: ${cards.length}件\nq=${q}`);
-          setSearchPage("results");
           return;
         }
       }
       state.results = [];
       renderResults();
       setStatus("見つかりませんでした");
-      setSearchPage("results");
       return;
     }
 
-    // Normal keyword: prefer ja + any language merge
-    const mergedById = new Map();
-    const pushAll = (arr) => { for (const c of arr) mergedById.set(c.id, c); };
+    // Normal: prefer ja + fallback any
+    const merged = new Map();
+    const pushAll = (arr)=>{ for (const c of arr) merged.set(c.id, c); };
 
-    if (preferJa) {
+    if (preferJa){
       const rJa = await fetchSearch(`lang:ja ${s}`);
       pushAll(Array.isArray(rJa.data?.data) ? rJa.data.data : []);
     }
     const rAny = await fetchSearch(s);
     pushAll(Array.isArray(rAny.data?.data) ? rAny.data.data : []);
 
-    if (mergedById.size > 0) {
-      let cards = Array.from(mergedById.values()).map(normalizeCard);
+    if (merged.size > 0){
+      let cards = Array.from(merged.values()).map(normalizeCard);
       cards = applyCollapseSame(cards, s, preferJa, collapseSame);
       cards = sortResults(cards, s, preferJa);
       state.results = cards;
       renderResults();
       setStatus(`ヒット: ${cards.length}件\nq=${preferJa ? "lang:ja " + s + " + " + s : s}`);
-      setSearchPage("results");
       return;
     }
 
     state.results = [];
     renderResults();
     setStatus("見つかりませんでした");
-    setSearchPage("results");
   }
 
   /* ===== Deck (Main/Side) ===== */
-  function boardObj(board) { return board === "side" ? state.deck.side : state.deck.main; }
+  function boardObj(board){ return board === "side" ? state.deck.side : state.deck.main; }
 
-  function addToBoard(board, card, delta = 1) {
-    const obj = boardObj(board);
-    const cur = obj[card.id];
-    if (cur) cur.qty += delta;
-    else obj[card.id] = { ...card, qty: delta };
-
-    if (obj[card.id] && obj[card.id].qty <= 0) delete obj[card.id];
-    state.deck.updatedAt = new Date().toISOString();
-    renderDeck();
+  function countBoard(obj){
+    return Object.values(obj).reduce((sum,x)=>sum+(x.qty||0),0);
   }
 
-  function changeQty(board, cardId, delta) {
-    const obj = boardObj(board);
-    const it = obj[cardId];
-    if (!it) return;
-    it.qty += delta;
-    if (it.qty <= 0) delete obj[cardId];
-    state.deck.updatedAt = new Date().toISOString();
-    renderDeck();
-
-    // モーダル表示中なら表示更新
-    if ($("cardModal").style.display === "grid" && state.cardModal.cardId === cardId && state.cardModal.board === board) {
-      $("cardModalName").textContent = `${(obj[cardId]?.qty ?? 0)}x ${it.name}`;
-      if (!obj[cardId]) closeCardModal(); // 0になったら閉じる
-    }
-  }
-
-  function moveCard(from, to, cardId) {
-    if (from === to) return;
-    const a = boardObj(from);
-    const b = boardObj(to);
-    const it = a[cardId];
-    if (!it) return;
-    if (b[cardId]) b[cardId].qty += it.qty;
-    else b[cardId] = it;
-    delete a[cardId];
-    state.deck.updatedAt = new Date().toISOString();
-    renderDeck();
-
-    // モーダル表示更新
-    closeCardModal();
-  }
-
-  function countBoard(obj) { return Object.values(obj).reduce((sum, x) => sum + (x.qty || 0), 0); }
-
-  // --- ソート用 ---
-  function typeBucket(typeLine) {
-    const t = (typeLine || "").toLowerCase();
-    if (t.includes("land")) return 0;
-    if (t.includes("creature")) return 1;
-    if (t.includes("planeswalker")) return 2;
-    if (t.includes("instant")) return 3;
-    if (t.includes("sorcery")) return 4;
-    if (t.includes("enchantment")) return 5;
-    if (t.includes("artifact")) return 6;
-    if (t.includes("battle")) return 7;
-    return 9;
-  }
-
-  function listEntries(obj, mode = "name") {
+  function listEntries(obj){
     const arr = Object.values(obj);
 
-    arr.sort((a, b) => {
-      if (mode === "cmc") {
-        const d = (a.cmc ?? 999) - (b.cmc ?? 999);
-        if (d !== 0) return d;
-        return (a.name || "").localeCompare(b.name || "", "en");
+    const mode = $("sortDeck")?.value || "name";
+    arr.sort((a,b)=>{
+      if (mode === "released"){
+        const ad = dateKey(a.released_at), bd = dateKey(b.released_at);
+        if (ad !== bd) return bd.localeCompare(ad);
+      } else if (mode === "set"){
+        const as = (a.set||""), bs = (b.set||"");
+        if (as !== bs) return as.localeCompare(bs);
       }
-      if (mode === "type") {
-        const d = typeBucket(a.type_line) - typeBucket(b.type_line);
-        if (d !== 0) return d;
-        const c = (a.cmc ?? 999) - (b.cmc ?? 999);
-        if (c !== 0) return c;
-        return (a.name || "").localeCompare(b.name || "", "en");
-      }
-      return (a.name || "").localeCompare(b.name || "", "en");
+      return (a.name||"").localeCompare(b.name||"");
     });
 
     return arr;
   }
 
-  function clearBoards() {
+  function addToBoard(board, card, delta=1){
+    const obj = boardObj(board);
+    const cur = obj[card.id];
+    if (cur) cur.qty += delta;
+    else obj[card.id] = { ...card, qty: delta };
+    state.deck.updatedAt = new Date().toISOString();
+    renderDeck();
+  }
+
+  // keepZero=true のときは 0枚でも消さない（モーダルが閉じないため）
+  function changeQty(board, cardId, delta, keepZero=false){
+    const obj = boardObj(board);
+    const it = obj[cardId];
+    if (!it) return;
+
+    it.qty += delta;
+
+    if (it.qty <= 0){
+      if (keepZero) it.qty = 0;
+      else delete obj[cardId];
+    }
+
+    state.deck.updatedAt = new Date().toISOString();
+    renderDeck();
+
+    // モーダル更新（閉じない）
+    if (state.openCard && state.openCard.board === board && state.openCard.id === cardId){
+      renderCardModal();
+    }
+  }
+
+  function moveCard(from, to, cardId){
+    if (from === to) return;
+    const a = boardObj(from);
+    const b = boardObj(to);
+    const it = a[cardId];
+    if (!it) return;
+
+    // 0枚なら移動は意味ないので無視（表示は維持）
+    if ((it.qty||0) <= 0) return;
+
+    if (b[cardId]) b[cardId].qty += it.qty;
+    else b[cardId] = it;
+    delete a[cardId];
+
+    state.deck.updatedAt = new Date().toISOString();
+    renderDeck();
+
+    // 開いてるモーダルの対象を移動先に更新
+    if (state.openCard && state.openCard.id === cardId){
+      state.openCard.board = to;
+      renderCardModal();
+    }
+  }
+
+  function cleanupZeros(){
+    for (const b of ["main","side"]){
+      const obj = boardObj(b);
+      for (const id of Object.keys(obj)){
+        if ((obj[id]?.qty ?? 0) <= 0) delete obj[id];
+      }
+    }
+  }
+
+  function clearBoards(){
     state.deck.main = {};
     state.deck.side = {};
     state.deck.updatedAt = new Date().toISOString();
     setCurrentDeckName("");
     renderDeck();
-    setStatus("Main/Side を消去しました");
+    setStatus("Main/Side を全消ししました");
   }
 
-  /* ===== Save/Load ===== */
-  function saveCurrentDeck() {
-    const name = $("deckName").value.trim();
-    if (!name) { setStatus("デッキ名を入力してください（デッキ設定）"); return; }
-    const store = loadStore();
-    const toSave = structuredClone(state.deck);
-    toSave.name = name;
-    toSave.updatedAt = new Date().toISOString();
-    store.decks[name] = toSave;
-    saveStore(store);
-    setCurrentDeckName(name);
-    refreshDeckSelect();
-    setStatus(`保存しました: ${name}`);
-    closeDeckMenu();
-  }
+  /* ===== Render ===== */
+  function renderResults(){
+    const el = $("results");
+    el.innerHTML = "";
 
-  function loadDeckByName(name) {
-    const store = loadStore();
-    const d = store.decks[name];
-    if (!d) { setStatus(`見つかりません: ${name}`); return; }
-    state.deck = {
-      name: d.name || name,
-      updatedAt: d.updatedAt || new Date().toISOString(),
-      main: d.main || {},
-      side: d.side || {}
-    };
-    setCurrentDeckName(name);
-    $("deckName").value = name;
-    renderDeck();
-    setStatus(`読み込みました: ${name}`);
-    closeDeckMenu();
-  }
-
-  function deleteDeckByName(name) {
-    const store = loadStore();
-    if (!store.decks[name]) { setStatus(`見つかりません: ${name}`); return; }
-    delete store.decks[name];
-    saveStore(store);
-    refreshDeckSelect();
-    setStatus(`削除しました: ${name}`);
-    if (state.currentDeckName === name) { setCurrentDeckName(""); $("deckName").value = ""; }
-  }
-
-  function newDeck() {
-    state.deck = newEmptyDeck("");
-    setCurrentDeckName("");
-    $("deckName").value = "";
-    renderDeck();
-    setStatus("新規デッキを作成しました");
-    closeDeckMenu();
-  }
-
-  /* ===== Render results (Grid + List) ===== */
-  function renderResults() {
-    const grid = $("resultsGrid");
-    const list = $("resultsList");
-    grid.innerHTML = "";
-    list.innerHTML = "";
-
-    $("hitCount").textContent = String(state.results.length);
-
-    for (const c of state.results) {
-      // grid card
+    for (const c of state.results){
       const wrap = document.createElement("div");
       wrap.className = "card";
 
@@ -946,59 +845,16 @@
 
       actions.append(btnMain, btnSide, btnOpen);
       meta.append(name, sub, actions);
+
       wrap.append(img, meta);
-      grid.appendChild(wrap);
-
-      // list row
-      const row = document.createElement("div");
-      row.className = "row";
-
-      const limg = document.createElement("img");
-      limg.loading = "lazy";
-      limg.alt = c.name;
-      limg.src = c.image || "";
-      limg.onerror = () => { limg.style.display = "none"; };
-
-      const rmeta = document.createElement("div");
-      rmeta.className = "rmeta";
-
-      const rname = document.createElement("div");
-      rname.className = "rname";
-      rname.textContent = c.name;
-
-      const rsub = document.createElement("div");
-      rsub.className = "rsub";
-      rsub.textContent = `${c.set}${c.collector ? " #" + c.collector : ""}${c.lang ? " / " + c.lang : ""}${c.released_at ? " / " + c.released_at : ""}`;
-
-      rmeta.append(rname, rsub);
-
-      const ractions = document.createElement("div");
-      ractions.className = "ractions";
-
-      const lMain = document.createElement("button");
-      lMain.textContent = "Main";
-      lMain.onclick = () => addToBoard("main", c, 1);
-
-      const lSide = document.createElement("button");
-      lSide.textContent = "Side";
-      lSide.onclick = () => addToBoard("side", c, 1);
-
-      const lOpen = document.createElement("button");
-      lOpen.textContent = "詳細";
-      lOpen.onclick = () => window.open(c.scryfall_uri, "_blank", "noopener,noreferrer");
-
-      ractions.append(lMain, lSide, lOpen);
-
-      row.append(limg, rmeta, ractions);
-      list.appendChild(row);
+      el.appendChild(wrap);
     }
   }
 
-  /* ===== Tiles: tap -> modal ===== */
-  function makeTile(boardName, it) {
+  function makeTile(boardName, it){
     const tile = document.createElement("div");
     tile.className = "tile";
-    tile.title = `${it.qty}x ${it.name}\nタップして操作`;
+    tile.title = `${it.qty}x ${it.name}`;
 
     const img = document.createElement("img");
     img.alt = it.name;
@@ -1012,117 +868,248 @@
 
     tile.append(img, badge);
 
-    tile.addEventListener("click", (e) => {
+    // タップで「操作モーダル」を開く（スクショに近い）
+    tile.addEventListener("click", (e)=>{
       e.preventDefault();
       openCardModal(boardName, it.id);
     });
 
-    // 長押し系の右クリックメニューを全抑止（誤爆防止）
-    tile.addEventListener("contextmenu", (e) => e.preventDefault());
-
     return tile;
   }
 
-  function renderTiles(container, obj, boardName) {
+  function renderTiles(container, obj, boardName){
     container.innerHTML = "";
-    const mode = $("deckSort").value;
-    for (const it of listEntries(obj, mode)) container.appendChild(makeTile(boardName, it));
+    for (const it of listEntries(obj)){
+      container.appendChild(makeTile(boardName, it));
+    }
   }
 
-  function renderDeck() {
-    $("mainCount").textContent = countBoard(state.deck.main);
-    $("sideCount").textContent = countBoard(state.deck.side);
+  function renderDeck(){
+    const mc = countBoard(state.deck.main);
+    const sc = countBoard(state.deck.side);
+
+    $("mainCount").textContent = mc;
+    $("sideCount").textContent = sc;
+    $("mainCountTop").textContent = mc;
+    $("sideCountTop").textContent = sc;
+
+    // collapsed
+    $("mainBody").style.display = state.boardCollapsed.main ? "none" : "block";
+    $("sideBody").style.display = state.boardCollapsed.side ? "none" : "block";
+    $("toggleMain").textContent = state.boardCollapsed.main ? "▶" : "▼";
+    $("toggleSide").textContent = state.boardCollapsed.side ? "▶" : "▼";
+
     renderTiles($("mainTiles"), state.deck.main, "main");
     renderTiles($("sideTiles"), state.deck.side, "side");
-    applyAccordion();
+  }
+
+  /* ===== Modals ===== */
+  function showOverlay(id){
+    const ov = $(id);
+    ov.classList.add("show");
+    ov.setAttribute("aria-hidden","false");
+  }
+  function hideOverlay(id){
+    const ov = $(id);
+    ov.classList.remove("show");
+    ov.setAttribute("aria-hidden","true");
+  }
+
+  function openCardModal(board, cardId){
+    state.openCard = { board, id: cardId };
+    renderCardModal();
+    showOverlay("cardModalOverlay");
+  }
+
+  function closeCardModal(){
+    // ここで0枚カードを掃除（閉じたら消える）
+    cleanupZeros();
+    state.openCard = null;
+    hideOverlay("cardModalOverlay");
+    renderDeck();
+  }
+
+  function renderCardModal(){
+    const body = $("cardModalBody");
+    if (!state.openCard){
+      body.innerHTML = "";
+      return;
+    }
+    const { board, id } = state.openCard;
+    const obj = boardObj(board);
+    const it = obj[id];
+
+    // もしすでに削除されてた場合でも、閉じないために仮表示
+    const safe = it || { id, name:"(カード)", qty:0, set:"", collector:"", lang:"", released_at:"", scryfall_uri:"#", image:"" };
+
+    $("cardModalTitle").textContent = `${board === "main" ? "Main" : "Side"}のカード操作`;
+
+    body.innerHTML = `
+      <div class="cardModalRow">
+        <img src="${safe.image || ""}" alt="">
+        <div class="cardModalMeta">
+          <div class="big">${safe.qty}x ${escapeHtml(safe.name || "")}</div>
+          <div class="small">${escapeHtml(safe.set || "")}${safe.collector ? " #" + escapeHtml(safe.collector) : ""} ${safe.lang ? "/ " + escapeHtml(safe.lang) : ""} ${safe.released_at ? "/ " + escapeHtml(safe.released_at) : ""}</div>
+
+          <div class="btnGrid">
+            <button id="cmPlus">+1</button>
+            <button id="cmMinus">-1</button>
+            <button id="cmMove" class="btnWide">${board === "main" ? "Sideへ移動" : "Mainへ移動"}</button>
+            <button id="cmOpen" class="btnWide">Scryfall</button>
+          </div>
+
+          <div class="note">※0枚になってもこの画面は閉じません（閉じるときに0枚は自動削除）</div>
+        </div>
+      </div>
+    `;
+
+    // wire buttons
+    $("cmPlus").onclick  = () => changeQty(board, id, +1, true);
+    $("cmMinus").onclick = () => changeQty(board, id, -1, true);
+
+    $("cmMove").onclick = () => {
+      const to = board === "main" ? "side" : "main";
+      moveCard(board, to, id);
+    };
+
+    $("cmOpen").onclick = () => {
+      if (safe.scryfall_uri && safe.scryfall_uri !== "#") window.open(safe.scryfall_uri, "_blank", "noopener,noreferrer");
+    };
+
+    // disable move if qty=0
+    if ((safe.qty||0) <= 0) $("cmMove").disabled = true;
+  }
+
+  function openSettingsModal(){
+    $("deckName").value = state.currentDeckName || "";
+    refreshDeckSelect();
+    showOverlay("settingsModalOverlay");
+  }
+  function closeSettingsModal(){
+    hideOverlay("settingsModalOverlay");
+  }
+
+  /* ===== Save/Load/Delete ===== */
+  function saveCurrentDeck(){
+    const name = $("deckName").value.trim();
+    if (!name){ setStatus("デッキ名を入力してください"); return; }
+
+    const store = loadStore();
+    const toSave = structuredClone(state.deck);
+    toSave.name = name;
+    toSave.updatedAt = new Date().toISOString();
+
+    store.decks[name] = toSave;
+    saveStore(store);
+
+    setCurrentDeckName(name);
+    setStatus(`保存しました: ${name}`);
+    refreshDeckSelect();
+  }
+
+  function loadDeckByName(name){
+    const store = loadStore();
+    const d = store.decks[name];
+    if (!d){ setStatus(`見つかりません: ${name}`); return; }
+
+    state.deck = {
+      name: d.name || name,
+      updatedAt: d.updatedAt || new Date().toISOString(),
+      main: d.main || {},
+      side: d.side || {}
+    };
+    setCurrentDeckName(name);
+    renderDeck();
+    setStatus(`読み込みました: ${name}`);
+  }
+
+  function deleteDeckByName(name){
+    const store = loadStore();
+    if (!store.decks[name]){ setStatus(`見つかりません: ${name}`); return; }
+    delete store.decks[name];
+    saveStore(store);
+    refreshDeckSelect();
+    setStatus(`削除しました: ${name}`);
+    if (state.currentDeckName === name){
+      setCurrentDeckName("");
+      state.deck = newEmptyDeck("");
+      renderDeck();
+    }
+  }
+
+  function newDeck(){
+    state.deck = newEmptyDeck("");
+    setCurrentDeckName("");
+    renderDeck();
+    setStatus("新規デッキを作成しました");
+  }
+
+  /* ===== UI toggles ===== */
+  $("toggleMain").onclick = () => { state.boardCollapsed.main = !state.boardCollapsed.main; renderDeck(); };
+  $("toggleSide").onclick = () => { state.boardCollapsed.side = !state.boardCollapsed.side; renderDeck(); };
+
+  /* ===== helpers ===== */
+  function escapeHtml(s){
+    return String(s)
+      .replaceAll("&","&amp;")
+      .replaceAll("<","&lt;")
+      .replaceAll(">","&gt;")
+      .replaceAll('"',"&quot;")
+      .replaceAll("'","&#039;");
   }
 
   /* ===== events ===== */
   $("btnSearch").onclick = () => searchCards($("q").value);
-  $("btnClear").onclick = () => {
-    $("q").value = "";
-    state.results = [];
-    renderResults();
-    setStatus("クリアしました");
-    setSearchPage("form");
+  $("btnClear").onclick = () => { $("q").value=""; state.results=[]; renderResults(); setStatus("クリアしました"); };
+  $("q").addEventListener("keydown", (e)=>{ if (e.key==="Enter") searchCards($("q").value); });
+  $("order").addEventListener("change", ()=>{ if ($("q").value.trim()) searchCards($("q").value); });
+  $("preferJa").addEventListener("change", ()=>{ if ($("q").value.trim()) searchCards($("q").value); });
+  $("collapseSame").addEventListener("change", ()=>{ if ($("q").value.trim()) searchCards($("q").value); });
+
+  $("btnClearBoards").onclick = () => {
+    if (!confirm("Main/Side を全消しします。よろしいですか？")) return;
+    clearBoards();
   };
-  $("q").addEventListener("keydown", (e) => { if (e.key === "Enter") searchCards($("q").value); });
 
-  $("order").addEventListener("change", () => { if ($("q").value.trim()) searchCards($("q").value); });
+  $("btnOpenSettings").onclick = openSettingsModal;
 
-  $("btnBackToForm").onclick = () => setSearchPage("form");
-  $("viewModeGrid").onclick = () => setResultsMode("grid");
-  $("viewModeList").onclick = () => setResultsMode("list");
+  $("closeCardModal").onclick = closeCardModal;
+  $("closeSettingsModal").onclick = closeSettingsModal;
 
-  $("btnClearBoards").onclick = clearBoards;
-  $("deckSort").addEventListener("change", renderDeck);
-
-  $("btnDeckMenu").onclick = openDeckMenu;
-  $("btnCloseDeckMenu").onclick = closeDeckMenu;
-  $("deckModal").addEventListener("click", (e) => {
-    if (e.target && e.target.id === "deckModal") closeDeckMenu();
+  // overlay click outside to close
+  $("cardModalOverlay").addEventListener("click", (e)=>{
+    if (e.target === $("cardModalOverlay")) closeCardModal();
+  });
+  $("settingsModalOverlay").addEventListener("click", (e)=>{
+    if (e.target === $("settingsModalOverlay")) closeSettingsModal();
   });
 
-  // Card Modal events
-  $("btnCloseCardModal").onclick = closeCardModal;
-  $("cardModal").addEventListener("click", (e) => {
-    if (e.target && e.target.id === "cardModal") closeCardModal();
-  });
-
-  $("btnCardPlus").onclick = () => {
-    const { board, cardId } = state.cardModal;
-    if (!board || !cardId) return;
-    changeQty(board, cardId, +1);
-    openCardModal(board, cardId); // 表示更新
-  };
-  $("btnCardMinus").onclick = () => {
-    const { board, cardId } = state.cardModal;
-    if (!board || !cardId) return;
-    changeQty(board, cardId, -1);
-    // 0なら changeQty 内で閉じるのでOK
-    if ($("cardModal").style.display === "grid") openCardModal(board, cardId);
-  };
-  $("btnCardMove").onclick = () => {
-    const { board, cardId } = state.cardModal;
-    if (!board || !cardId) return;
-    const to = (board === "main") ? "side" : "main";
-    moveCard(board, to, cardId);
-  };
-  $("btnCardOpen").onclick = () => {
-    const { board, cardId } = state.cardModal;
-    if (!board || !cardId) return;
-    const it = boardObj(board)[cardId];
-    if (!it) return;
-    window.open(it.scryfall_uri, "_blank", "noopener,noreferrer");
-  };
-
+  // deck settings buttons
   $("btnSaveDeck").onclick = saveCurrentDeck;
+  $("btnNewDeck").onclick = () => {
+    if (!confirm("新規デッキを作成します（未保存の変更は失われます）。よろしいですか？")) return;
+    newDeck();
+  };
   $("btnLoadDeck").onclick = () => {
     const name = $("deckSelect").value;
-    if (!name) { setStatus("読み込むデッキを選択してください"); return; }
+    if (!name){ setStatus("読み込むデッキを選択してください"); return; }
     loadDeckByName(name);
+    closeSettingsModal();
   };
   $("btnDeleteDeck").onclick = () => {
     const name = $("deckSelect").value || state.currentDeckName;
-    if (!name) { setStatus("削除するデッキを選択してください"); return; }
+    if (!name){ setStatus("削除するデッキを選択してください"); return; }
     if (!confirm(`デッキ「${name}」を削除します。よろしいですか？`)) return;
     deleteDeckByName(name);
   };
-  $("btnNewDeck").onclick = () => {
-    if (!confirm("新規デッキを作成します（現在の未保存の変更は失われます）。よろしいですか？")) return;
-    newDeck();
+  $("btnCleanupZeros").onclick = () => {
+    cleanupZeros();
+    renderDeck();
+    setStatus("0枚カードを掃除しました");
   };
 
-  $("mainHead").addEventListener("click", () => {
-    state.deckUI.mainOpen = !state.deckUI.mainOpen;
-    saveDeckUI();
-    applyAccordion();
-  });
-  $("sideHead").addEventListener("click", () => {
-    state.deckUI.sideOpen = !state.deckUI.sideOpen;
-    saveDeckUI();
-    applyAccordion();
-  });
+  // sort deck list
+  $("sortDeck").addEventListener("change", renderDeck);
 
   /* ===== init ===== */
   refreshDeckSelect();
@@ -1130,11 +1117,8 @@
   renderResults();
   renderDeck();
   setStatus("待機中");
-
-  setResultsMode(searchUI.mode);
-  setSearchPage(searchUI.page);
-
   syncViewFromHash();
+
 })();
 </script>
 
@@ -1144,5 +1128,6 @@ if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("./sw.js").catch(() => {});
 }
 </script>
+
 </body>
 </html>
