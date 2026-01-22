@@ -64,12 +64,12 @@
 
     .tileWrap { padding:10px; }
     .tileGrid {
-      display:grid;
-      grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
-      gap:8px;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
+      gap: 6px;
       max-height: 58vh;
-      overflow:auto;
-      padding-right: 4px;
+      overflow: auto;
+      padding-right: 4px;  
     }
     .tile {
       position:relative;
@@ -84,14 +84,26 @@
     }
     .tile img { width:100%; aspect-ratio: 0.714; object-fit: cover; display:block; background:#07080c; pointer-events:none; }
     .badge {
-      position:absolute; top:6px; left:6px; min-width: 24px; padding:3px 6px; border-radius:999px;
-      background:rgba(0,0,0,.7); border:1px solid rgba(255,255,255,.18); color:#fff; font-size:12px; font-weight:800;
-      text-align:center; font-variant-numeric: tabular-nums; pointer-events:none;
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      min-width: 18px;
+      padding: 2px 5px;
+      border-radius: 999px;
+      background: rgba(0,0,0,.75);
+      border: 1px solid rgba(255,255,255,.25);
+      color: #fff;
+      font-size: 11px;
+      font-weight: 700;
+      text-align: center;
+      font-variant-numeric: tabular-nums;
+      pointer-events: none;
     }
     .tileFooter {
-      padding:6px 8px; border-top:1px solid rgba(255,255,255,.06);
-      font-size:11px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-      background:rgba(0,0,0,.18); pointer-events:none;
+      display: none;
+    }
+    .tile:hover .tileFooter {
+      display: block;
     }
     .tileHelp { font-size:11px; color:var(--muted); margin-top:8px; line-height:1.35; }
 
@@ -730,3 +742,4 @@ if ("serviceWorker" in navigator) {
 </script>
 </body>
 </html>
+
