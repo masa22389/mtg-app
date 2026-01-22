@@ -1,14 +1,20 @@
 (() => {
+  "use strict";
   const $ = (id) => document.getElementById(id);
 
   // ===== Version =====
-  const APP_VERSION = "0.0.3";
+  const APP_VERSION = "0.0.4";
 
   // ===== Search view mode (grid/list) =====
   const SEARCH_VIEW_KEY = "mtg_search_view";
   let searchView = localStorage.getItem(SEARCH_VIEW_KEY) || "grid";
 
-  // ===== Storage keys (backward compatible) =====
+  // ===== Favorites =====
+  const FAV_KEY = "mtg_favorites_v1";          // favorites map
+  const FAV_ONLY_KEY = "mtg_favorites_only";   // "1" or "0"
+  let favOnly = (localStorage.getItem(FAV_ONLY_KEY) === "1");
+
+  // ===== Storage keys (decks) =====
   const STORE_KEYS = [
     "mtg_deck_store_tabs_v2",
     "mtg_deck_store_v2",
@@ -16,17 +22,17 @@
     "mtg_deck_store",
     "mtg_deck_store_v0"
   ];
-  const STORE_KEY = STORE_KEYS[0];
+  const STORE_KEY = STORE_KEYS[0]; // always save into tabs_v2
 
   const state = {
     results: [],
     deck: newEmptyDeck(""),
     currentDeckName: "",
-    openCard: null,
+    openCard: null, // { board:"main"|"side", id:"..." }
     boardCollapsed: { main:false, side:false }
   };
 
-  /* ===== View switching ===== */
+  // ===== View switching =====
   function setView(view){
     const isSearch = view === "search";
     $("viewSearch").classList.toggle("active", isSearch);
@@ -45,10 +51,6 @@
     if (h === "#deck") setView("deck");
     else setView("search");
   }
-  $("tabSearch").onclick = () => setView("search");
-  $("tabDeck").onclick = () => setView("deck");
-  window.addEventListener("popstate", syncViewFromHash);
-  window.addEventListener("hashchange", syncViewFromHash);
 
   function setStatus(msg){
     $("status").textContent = msg;
@@ -56,7 +58,7 @@
     if (ds) ds.textContent = msg;
   }
 
-  /* ===== Search view toggle ===== */
+  // ===== Search view toggle (grid/list) =====
   function setSearchView(mode){
     searchView = (mode === "list") ? "list" : "grid";
     localStorage.setItem(SEARCH_VIEW_KEY, searchView);
@@ -70,7 +72,7 @@
     $("viewMode").options[1].textContent = "表示（リスト）";
   }
 
-  /* ===== Storage ===== */
+  // ===== Storage (Decks) =====
   function loadStore(){
     for (const key of STORE_KEYS){
       try{
@@ -118,7 +120,46 @@
     $("currentDeckName").textContent = state.currentDeckName ? state.currentDeckName : "（未保存）";
   }
 
-  /* ===== Scryfall ===== */
+  // ===== Favorites storage =====
+  function loadFavs(){
+    try{
+      const raw = localStorage.getItem(FAV_KEY);
+      if (!raw) return {};
+      const obj = JSON.parse(raw);
+      if (obj && typeof obj === "object") return obj;
+    }catch{}
+    return {};
+  }
+  function saveFavs(obj){
+    localStorage.setItem(FAV_KEY, JSON.stringify(obj));
+  }
+
+  // key: oracle_id優先。無ければid
+  function favKey(card){
+    return card.oracle_id || card.id;
+  }
+
+  function isFav(card){
+    const favs = loadFavs();
+    return !!favs[favKey(card)];
+  }
+
+  function toggleFav(card){
+    const favs = loadFavs();
+    const key = favKey(card);
+    if (favs[key]) delete favs[key];
+    else favs[key] = card; // normalized cardを保存（表示・復元が楽）
+    saveFavs(favs);
+  }
+
+  function setFavOnly(next){
+    favOnly = !!next;
+    localStorage.setItem(FAV_ONLY_KEY, favOnly ? "1" : "0");
+    $("btnFavOnly").classList.toggle("on", favOnly);
+    $("btnFavOnly").textContent = favOnly ? "★ お気に入り中" : "★ お気に入り";
+  }
+
+  // ===== Scryfall helpers =====
   function looksJapanese(s){ return /[\u3040-\u30FF\u4E00-\u9FFF]/.test(s); }
   function isAdvancedQuery(s){
     return /(^|\s)(t:|c:|o:|oracle:|f:|format:|lang:|is:|set:|cn:|rarity:|type:|pow|tou|cmc)\b/i.test(s) || /[:"]/g.test(s);
@@ -132,11 +173,9 @@
     return "";
   }
 
-  // 表示名：日本語版がある時は printed_name を優先
   function getDisplayName(card){
     return card.printed_name || card.name || "";
   }
-
   function getDisplayType(card){
     return card.printed_type_line || card.type_line || "";
   }
@@ -145,7 +184,7 @@
     return {
       id: card.id,
       oracle_id: card.oracle_id,
-      name: getDisplayName(card),
+      name: getDisplayName(card),      // 日本語あれば日本語（printed_name）
       en_name: card.name || "",
       set: (card.set || "").toUpperCase(),
       collector: card.collector_number || "",
@@ -163,6 +202,7 @@
     url.searchParams.set("q", q);
     url.searchParams.set("unique", "prints");
     url.searchParams.set("order", $("order").value);
+
     const res = await fetch(url.toString(), { headers:{ "Accept":"application/json" } });
     const data = await res.json().catch(()=>({}));
     return { ok: res.ok, data, status: res.status };
@@ -229,7 +269,6 @@
         const bj = (b.lang === "ja") ? 0 : 1;
         if (aj !== bj) return aj - bj;
       }
-
       if (aname !== bname) return aname.localeCompare(bname);
 
       const ad = dateKey(a.released_at);
@@ -241,21 +280,42 @@
     return cards;
   }
 
-  // ===== ここが重要修正①：ふりがな括弧（全角（ ）も）に対応する =====
+  // ===== Furigana fallback (括弧ふりがな対策) =====
   function escapeRegex(s){
     return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   }
-
   function buildFuriganaRegex(input){
-    // 「（ ）」全角も「( )」半角も許容
+    // 入力文字の各文字の後ろに ( ... ) が挟まってもOKにする
     const chars = Array.from(input.trim()).filter(ch => ch !== " " && ch !== "　");
-    const after = String.raw`(?:[（(][^）)]*[）)])?`;
-    const parts = chars.map(ch => `${escapeRegex(ch)}${after}`);
-    return parts.join(String.raw`\s*`);
+    const parts = chars.map(ch => `${escapeRegex(ch)}(?:\\([^)]*\\))?`);
+    return parts.join("\\s*");
   }
 
+  // ===== Favorites-only filtering =====
+  function filterFavsByQuery(favsArr, q){
+    const s = (q || "").trim();
+    if (!s) return favsArr;
+    const low = s.toLowerCase();
+    return favsArr.filter(c => {
+      return (c.name||"").toLowerCase().includes(low) || (c.en_name||"").toLowerCase().includes(low);
+    });
+  }
+
+  // ===== Search main =====
   async function searchCards(rawInput){
-    const s = rawInput.trim();
+    const s = (rawInput || "").trim();
+
+    // ★お気に入りモード：Scryfallに行かず、保存済みお気に入りだけを表示
+    if (favOnly){
+      const favs = loadFavs();
+      let arr = Object.values(favs);
+      arr = filterFavsByQuery(arr, s);
+      state.results = arr;
+      renderResults();
+      setStatus(`お気に入り: ${arr.length}件`);
+      return;
+    }
+
     if (!s){
       state.results = [];
       renderResults();
@@ -268,6 +328,7 @@
 
     setStatus("検索中…");
 
+    // Advanced query
     if (isAdvancedQuery(s)){
       const queries = (preferJa && looksJapanese(s) && !/(^|\s)lang:/i.test(s))
         ? [`lang:ja ${s}`, s]
@@ -294,6 +355,7 @@
       return;
     }
 
+    // Normal query: prefer ja + fallback any
     const merged = new Map();
     const pushAll = (arr)=>{ for (const c of arr) merged.set(c.id, c); };
 
@@ -304,7 +366,7 @@
       jaHitCount = jaArr.length;
       pushAll(jaArr);
 
-      // ★ふりがな括弧入り printed_name 用のフォールバック
+      // Furigana fallback only if no hit
       if (jaHitCount === 0 && looksJapanese(s)){
         const rx = buildFuriganaRegex(s);
         const rRx = await fetchSearch(`lang:ja name:/${rx}/`);
@@ -318,23 +380,7 @@
 
     if (merged.size > 0){
       let rawCards = Array.from(merged.values());
-
       rawCards = applyCollapseSame(rawCards, s, preferJa, collapseSame);
-
-      if (preferJa){
-        const bestByOracle = new Map();
-        for (const c of rawCards){
-          const key = c.oracle_id || c.id;
-          const cur = bestByOracle.get(key);
-          if (!cur) { bestByOracle.set(key, c); continue; }
-          const curJ = (cur.lang === "ja") ? 1 : 0;
-          const cJ = (c.lang === "ja") ? 1 : 0;
-          if (cJ > curJ) bestByOracle.set(key, c);
-        }
-        if (collapseSame){
-          rawCards = Array.from(bestByOracle.values());
-        }
-      }
 
       let cards = rawCards.map(normalizeCard);
       cards = sortResults(cards, s, preferJa);
@@ -350,7 +396,7 @@
     setStatus("見つかりませんでした");
   }
 
-  /* ===== Deck (Main/Side) ===== */
+  // ===== Deck =====
   function boardObj(board){ return board === "side" ? state.deck.side : state.deck.main; }
 
   function countBoard(obj){
@@ -375,85 +421,6 @@
     return arr;
   }
 
-  // ===== 重要修正②：デッキ側も「日本語印刷があるなら日本語に寄せる」(旧デッキ救済も) =====
-  const jaPrintCache = new Map(); // oracle_id -> normalizedCard (lang:ja)
-  let deckJaEnrichTimer = null;
-
-  async function fetchLatestJaPrintByOracle(oracleId){
-    if (!oracleId) return null;
-    if (jaPrintCache.has(oracleId)) return jaPrintCache.get(oracleId);
-
-    try{
-      // oracleid: はScryfallの検索演算子
-      const url = new URL("https://api.scryfall.com/cards/search");
-      url.searchParams.set("q", `oracleid:${oracleId} lang:ja`);
-      url.searchParams.set("unique", "prints");
-      url.searchParams.set("order", "released");
-      url.searchParams.set("dir", "desc");
-
-      const res = await fetch(url.toString(), { headers:{ "Accept":"application/json" } });
-      const data = await res.json().catch(()=>({}));
-      const arr = Array.isArray(data?.data) ? data.data : [];
-      if (!arr.length) { jaPrintCache.set(oracleId, null); return null; }
-
-      const best = normalizeCard(arr[0]); // 最新印刷（desc）
-      jaPrintCache.set(oracleId, best);
-      return best;
-    }catch{
-      jaPrintCache.set(oracleId, null);
-      return null;
-    }
-  }
-
-  function scheduleDeckJaEnrichment(){
-    if (deckJaEnrichTimer) clearTimeout(deckJaEnrichTimer);
-    deckJaEnrichTimer = setTimeout(async ()=>{
-      // deck内で「日本語があれば置換したい」候補を探す
-      const targets = [];
-      for (const boardName of ["main","side"]){
-        const obj = boardObj(boardName);
-        for (const id of Object.keys(obj)){
-          const it = obj[id];
-          if (!it) continue;
-          if (!it.oracle_id) continue;
-          if (it.lang === "ja") continue;
-          // 英語表示のままっぽいやつを日本語化
-          targets.push({ boardName, id, oracle_id: it.oracle_id });
-        }
-      }
-
-      // 1回で全部取りに行くと重いので、最大5件ずつ
-      const batch = targets.slice(0, 5);
-      if (!batch.length) return;
-
-      let changed = false;
-      for (const t of batch){
-        const ja = await fetchLatestJaPrintByOracle(t.oracle_id);
-        if (!ja) continue;
-        const obj = boardObj(t.boardName);
-        const it = obj[t.id];
-        if (!it) continue;
-
-        // 同じカードとして扱うので qty は維持
-        it.name = ja.name || it.name;
-        it.lang = "ja";
-        it.image = ja.image || it.image;
-        it.scryfall_uri = ja.scryfall_uri || it.scryfall_uri;
-        it.set = ja.set || it.set;
-        it.collector = ja.collector || it.collector;
-        changed = true;
-      }
-
-      if (changed){
-        state.deck.updatedAt = new Date().toISOString();
-        renderDeck();
-      }
-
-      // まだ残ってそうならもう一周
-      scheduleDeckJaEnrichment();
-    }, 250);
-  }
-
   function addToBoard(board, card, delta=1){
     const obj = boardObj(board);
     const cur = obj[card.id];
@@ -461,9 +428,9 @@
     else obj[card.id] = { ...card, qty: delta };
     state.deck.updatedAt = new Date().toISOString();
     renderDeck();
-    scheduleDeckJaEnrichment();
   }
 
+  // keepZero=true のときは 0枚でも消さない（モーダルを閉じないため）
   function changeQty(board, cardId, delta, keepZero=false){
     const obj = boardObj(board);
     const it = obj[cardId];
@@ -523,7 +490,7 @@
     setStatus("Main/Side を全消ししました");
   }
 
-  /* ===== Render ===== */
+  // ===== Render =====
   function renderResults(){
     const grid = $("resultsGrid");
     const list = $("resultsList");
@@ -531,6 +498,7 @@
     list.innerHTML = "";
 
     for (const c of state.results){
+      // ---- grid ----
       const wrap = document.createElement("div");
       wrap.className = "card";
 
@@ -555,22 +523,35 @@
       actions.className = "actions";
 
       const btnMain = document.createElement("button");
-      btnMain.textContent = "Mainに追加";
+      btnMain.textContent = "Main";
       btnMain.onclick = () => addToBoard("main", c, 1);
 
       const btnSide = document.createElement("button");
-      btnSide.textContent = "Sideに追加";
+      btnSide.textContent = "Side";
       btnSide.onclick = () => addToBoard("side", c, 1);
 
       const btnOpen = document.createElement("button");
       btnOpen.textContent = "詳細";
       btnOpen.onclick = () => window.open(c.scryfall_uri, "_blank", "noopener,noreferrer");
 
-      actions.append(btnMain, btnSide, btnOpen);
+      const fav = document.createElement("button");
+      fav.className = "favBtn";
+      const on = isFav(c);
+      fav.classList.toggle("on", on);
+      fav.textContent = on ? "★" : "☆";
+      fav.title = on ? "お気に入り解除" : "お気に入り追加";
+      fav.onclick = () => {
+        toggleFav(c);
+        renderResults(); // 状態反映
+        if (favOnly) searchCards($("q").value);
+      };
+
+      actions.append(btnMain, btnSide, btnOpen, fav);
       meta.append(name, sub, actions);
       wrap.append(img, meta);
       grid.appendChild(wrap);
 
+      // ---- list ----
       const row = document.createElement("div");
       row.className = "row";
 
@@ -587,6 +568,10 @@
       rname.className = "rname";
       rname.textContent = c.name;
 
+      const rsub = document.createElement("div");
+      rsub.className = "rsub";
+      rsub.textContent = `${c.set}${c.collector ? " #" + c.collector : ""}${c.lang ? " / " + c.lang : ""}${c.released_at ? " / " + c.released_at : ""}`;
+
       const ractions = document.createElement("div");
       ractions.className = "ractions";
 
@@ -602,14 +587,21 @@
       lOpen.textContent = "詳細";
       lOpen.onclick = () => window.open(c.scryfall_uri, "_blank", "noopener,noreferrer");
 
-      ractions.append(lMain, lSide, lOpen);
+      const lfav = document.createElement("button");
+      lfav.className = "favBtn";
+      const lon = isFav(c);
+      lfav.classList.toggle("on", lon);
+      lfav.textContent = lon ? "★" : "☆";
+      lfav.title = lon ? "お気に入り解除" : "お気に入り追加";
+      lfav.onclick = () => {
+        toggleFav(c);
+        renderResults();
+        if (favOnly) searchCards($("q").value);
+      };
 
-      const rsub = document.createElement("div");
-      rsub.className = "rsub";
-      rsub.textContent = `${c.set}${c.collector ? " #" + c.collector : ""}${c.lang ? " / " + c.lang : ""}${c.released_at ? " / " + c.released_at : ""}`;
+      ractions.append(lMain, lSide, lOpen, lfav);
 
       rmeta.append(rname, rsub, ractions);
-
       row.append(limg, rmeta);
       list.appendChild(row);
     }
@@ -663,12 +655,9 @@
 
     renderTiles($("mainTiles"), state.deck.main, "main");
     renderTiles($("sideTiles"), state.deck.side, "side");
-
-    // 旧デッキの英語名を日本語に寄せる（あれば）
-    scheduleDeckJaEnrichment();
   }
 
-  /* ===== Modals ===== */
+  // ===== Modals =====
   function showOverlay(id){
     const ov = $(id);
     ov.classList.add("show");
@@ -687,7 +676,7 @@
   }
 
   function closeCardModal(){
-    cleanupZeros();
+    cleanupZeros(); // 閉じる時だけ掃除（UIは出さない）
     state.openCard = null;
     hideOverlay("cardModalOverlay");
     renderDeck();
@@ -707,7 +696,7 @@
 
     $("cardModalTitle").textContent = `${board === "main" ? "Main" : "Side"}のカード操作`;
 
-    // 要望：カード名の下の「USG #174 / ja / ...」の1行は出さない
+    // 要望：カード名の下の「USG #174 / ja / 1998...」行は出さない
     body.innerHTML = `
       <div class="cardModalRow">
         <img src="${safe.image || ""}" alt="">
@@ -748,7 +737,7 @@
     hideOverlay("settingsModalOverlay");
   }
 
-  /* ===== Save/Load/Delete ===== */
+  // ===== Save/Load/Delete =====
   function saveCurrentDeck(){
     const name = $("deckName").value.trim();
     if (!name){ setStatus("デッキ名を入力してください"); return; }
@@ -803,7 +792,7 @@
     setStatus("新規デッキを作成しました");
   }
 
-  /* ===== helpers ===== */
+  // ===== helpers =====
   function escapeHtml(s){
     return String(s)
       .replaceAll("&","&amp;")
@@ -813,16 +802,52 @@
       .replaceAll("'","&#039;");
   }
 
-  /* ===== events ===== */
-  $("btnSearch").onclick = () => searchCards($("q").value);
-  $("btnClear").onclick = () => { $("q").value=""; state.results=[]; renderResults(); setStatus("クリアしました"); };
-  $("q").addEventListener("keydown", (e)=>{ if (e.key==="Enter") searchCards($("q").value); });
+  // ===== Events =====
+  $("tabSearch").onclick = () => setView("search");
+  $("tabDeck").onclick = () => setView("deck");
+  window.addEventListener("popstate", syncViewFromHash);
+  window.addEventListener("hashchange", syncViewFromHash);
 
-  $("order").addEventListener("change", ()=>{ if ($("q").value.trim()) searchCards($("q").value); });
-  $("preferJa").addEventListener("change", ()=>{ if ($("q").value.trim()) searchCards($("q").value); });
-  $("collapseSame").addEventListener("change", ()=>{ if ($("q").value.trim()) searchCards($("q").value); });
+  $("btnSearch").onclick = () => searchCards($("q").value);
+
+  $("btnClear").onclick = () => {
+    $("q").value = "";
+    state.results = [];
+    renderResults();
+    setStatus("クリアしました");
+  };
+
+  $("q").addEventListener("keydown", (e)=>{ if (e.key === "Enter") searchCards($("q").value); });
+
+  $("order").addEventListener("change", ()=>{
+    if (favOnly) searchCards($("q").value);
+    else if ($("q").value.trim()) searchCards($("q").value);
+  });
+
+  $("preferJa").addEventListener("change", ()=>{
+    if (favOnly) return; // お気に入り表示には影響させない
+    if ($("q").value.trim()) searchCards($("q").value);
+  });
+
+  $("collapseSame").addEventListener("change", ()=>{
+    if (favOnly) return;
+    if ($("q").value.trim()) searchCards($("q").value);
+  });
 
   $("viewMode").addEventListener("change", ()=> setSearchView($("viewMode").value));
+
+  $("btnFavOnly").onclick = () => {
+    setFavOnly(!favOnly);
+
+    // お気に入りモードに入ったら即表示
+    if (favOnly){
+      searchCards($("q").value);
+    }else{
+      // 戻したら、入力があれば検索、なければ空表示
+      if ($("q").value.trim()) searchCards($("q").value);
+      else { state.results = []; renderResults(); setStatus("待機中"); }
+    }
+  };
 
   $("toggleMain").onclick = () => { state.boardCollapsed.main = !state.boardCollapsed.main; renderDeck(); };
   $("toggleSide").onclick = () => { state.boardCollapsed.side = !state.boardCollapsed.side; renderDeck(); };
@@ -845,31 +870,29 @@
   });
 
   $("btnSaveDeck").onclick = saveCurrentDeck;
+
   $("btnNewDeck").onclick = () => {
     if (!confirm("新規デッキを作成します（未保存の変更は失われます）。よろしいですか？")) return;
     newDeck();
   };
+
   $("btnLoadDeck").onclick = () => {
     const name = $("deckSelect").value;
     if (!name){ setStatus("読み込むデッキを選択してください"); return; }
     loadDeckByName(name);
     closeSettingsModal();
   };
+
   $("btnDeleteDeck").onclick = () => {
     const name = $("deckSelect").value || state.currentDeckName;
     if (!name){ setStatus("削除するデッキを選択してください"); return; }
     if (!confirm(`デッキ「${name}」を削除します。よろしいですか？`)) return;
     deleteDeckByName(name);
   };
-  $("btnCleanupZeros").onclick = () => {
-    cleanupZeros();
-    renderDeck();
-    setStatus("0枚カードを掃除しました");
-  };
 
   $("sortDeck").addEventListener("change", renderDeck);
 
-  /* ===== init ===== */
+  // ===== Init =====
   $("verBadge").textContent = `ver ${APP_VERSION}`;
   loadStore();
   refreshDeckSelect();
@@ -880,5 +903,8 @@
   setStatus("待機中");
   setSearchView(searchView);
   syncViewFromHash();
+
+  // init fav-only button state
+  setFavOnly(favOnly);
 
 })();
