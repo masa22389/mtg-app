@@ -606,7 +606,7 @@
 
   // ===== Storage keys (backward compatible) =====
   const STORE_KEYS = [
-    "mtg_deck_store_tabs_v2", // ← 指定されたキー（過去デッキ互換）
+    "mtg_deck_store_tabs_v2",
     "mtg_deck_store_v2",
     "mtg_deck_store_v1",
     "mtg_deck_store",
@@ -728,7 +728,7 @@
     return "";
   }
 
-  // 表示名：日本語版がある時は printed_name を優先（ユーザー要望）
+  // 表示名：日本語版がある時は printed_name を優先
   function getDisplayName(card){
     return card.printed_name || card.name || "";
   }
@@ -741,8 +741,8 @@
     return {
       id: card.id,
       oracle_id: card.oracle_id,
-      name: getDisplayName(card),      // 表示名（日本語優先）
-      en_name: card.name || "",        // 英名（必要なら）
+      name: getDisplayName(card),
+      en_name: card.name || "",
       set: (card.set || "").toUpperCase(),
       collector: card.collector_number || "",
       lang: card.lang || "",
@@ -762,6 +762,57 @@
     const res = await fetch(url.toString(), { headers:{ "Accept":"application/json" } });
     const data = await res.json().catch(()=>({}));
     return { ok: res.ok, data, status: res.status };
+  }
+
+  // collection: 既存デッキの英語名 → 日本語名へ補正用
+  async function fetchCollectionByIds(ids){
+    const url = "https://api.scryfall.com/cards/collection";
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type":"application/json", "Accept":"application/json" },
+      body: JSON.stringify({ identifiers: ids.map(id => ({ id })) })
+    });
+    const data = await res.json().catch(()=>({}));
+    return { ok: res.ok, data };
+  }
+
+  function looksEnglishName(name){
+    if (!name) return true;
+    return !/[\u3040-\u30FF\u4E00-\u9FFF]/.test(name);
+  }
+
+  async function upgradeDeckNamesToJapanese(){
+    if (!$("preferJa")?.checked) return;
+
+    const needIds = [];
+    for (const b of ["main","side"]){
+      const obj = (b === "side") ? state.deck.side : state.deck.main;
+      for (const it of Object.values(obj)){
+        if ((it.lang === "ja" || !it.lang) && looksEnglishName(it.name)){
+          needIds.push(it.id);
+        }
+      }
+    }
+
+    const uniq = Array.from(new Set(needIds));
+    if (uniq.length === 0) return;
+
+    for (let i=0; i<uniq.length; i+=75){
+      const batch = uniq.slice(i, i+75);
+      const r = await fetchCollectionByIds(batch);
+      const arr = Array.isArray(r.data?.data) ? r.data.data : [];
+
+      for (const card of arr){
+        const n = normalizeCard(card);
+        for (const b of ["main","side"]){
+          const obj = (b === "side") ? state.deck.side : state.deck.main;
+          if (obj[n.id]){
+            const qty = obj[n.id].qty ?? 1;
+            obj[n.id] = { ...obj[n.id], ...n, qty };
+          }
+        }
+      }
+    }
   }
 
   function dateKey(d){ return (d && typeof d === "string") ? d : ""; }
@@ -785,7 +836,6 @@
       const bd = dateKey(best.released_at);
       if (ad !== bd){ if (ad > bd) best = c; continue; }
 
-      // printed_name を優先して一致判定（日本語名で検索した時の安定化）
       const aName = (c.printed_name || c.name || "");
       const bName = (best.printed_name || best.name || "");
       const ae = exactRank(aName, query);
@@ -838,16 +888,18 @@
     return cards;
   }
 
-  // 「量（りょう）子（し）の…」対策：括弧入り送り仮名を許容する name:/regex/ をフォールバック
+  // ===== Furigana tolerant regex builder =====
   function escapeRegex(s){
     return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   }
   function buildFuriganaRegex(input){
-    // 例: 量子の謎かけ屋 -> 量(?:\([^)]*\))?子(?:\([^)]*\))?の(?:\([^)]*\))?謎(?:\([^)]*\))?か(?:\([^)]*\))?け(?:\([^)]*\))?屋(?:\([^)]*\))?
+    // 半角() / 全角（ ）どちらのふりがな括弧も許容
+    const furigana = "(?:\\([^)]*\\)|（[^）]*）)?";
+    // 文字間スペース：半角スペース/全角スペースを許容
+    const gap = "[\\s　]*";
     const chars = Array.from(input.trim()).filter(ch => ch !== " " && ch !== "　");
-    const parts = chars.map(ch => `${escapeRegex(ch)}(?:\\([^)]*\\))?`);
-    // 多少ゆるく：途中に空白が入ってもOK
-    return parts.join("\\s*");
+    const parts = chars.map(ch => `${escapeRegex(ch)}${gap}${furigana}`);
+    return parts.join(gap);
   }
 
   async function searchCards(rawInput){
@@ -864,7 +916,7 @@
 
     setStatus("検索中…");
 
-    // Advanced query: keep as-is (but preferJa adds lang:ja if japanese and not specified)
+    // Advanced query: keep as-is
     if (isAdvancedQuery(s)){
       const queries = (preferJa && looksJapanese(s) && !/(^|\s)lang:/i.test(s))
         ? [`lang:ja ${s}`, s]
@@ -874,7 +926,7 @@
         const r = await fetchSearch(q);
         const arr = Array.isArray(r.data?.data) ? r.data.data : [];
         if (arr.length > 0){
-          let rawCards = arr; // keep raw first
+          let rawCards = arr;
           rawCards = applyCollapseSame(rawCards, s, preferJa, collapseSame);
           let cards = rawCards.map(normalizeCard);
           cards = sortResults(cards, s, preferJa);
@@ -891,11 +943,10 @@
       return;
     }
 
-    // Normal: prefer ja + fallback any
     const merged = new Map();
     const pushAll = (arr)=>{ for (const c of arr) merged.set(c.id, c); };
 
-    // 1) Japanese first (if enabled)
+    // 1) Japanese first
     let jaHitCount = 0;
     if (preferJa){
       const rJa = await fetchSearch(`lang:ja ${s}`);
@@ -903,12 +954,19 @@
       jaHitCount = jaArr.length;
       pushAll(jaArr);
 
-      // 1-2) Furigana fallback (only if japanese query and no hit)
+      // 1-2) Furigana fallback
       if (jaHitCount === 0 && looksJapanese(s)){
         const rx = buildFuriganaRegex(s);
         const rRx = await fetchSearch(`lang:ja name:/${rx}/`);
         const rxArr = Array.isArray(rRx.data?.data) ? rRx.data.data : [];
         pushAll(rxArr);
+
+        // 保険：regexがダメならもう一回通常lang:ja
+        if (rxArr.length === 0){
+          const r2 = await fetchSearch(`lang:ja ${s}`);
+          const arr2 = Array.isArray(r2.data?.data) ? r2.data.data : [];
+          pushAll(arr2);
+        }
       }
     }
 
@@ -918,27 +976,7 @@
 
     if (merged.size > 0){
       let rawCards = Array.from(merged.values());
-
       rawCards = applyCollapseSame(rawCards, s, preferJa, collapseSame);
-
-      // preferJa がONなら「ja印刷があれば、それを優先して表示」したいので、
-      // normalize後に、同じoracle_idが混在する場合は ja を優先して残す（collapseSame OFFでも効く）
-      if (preferJa){
-        const bestByOracle = new Map();
-        for (const c of rawCards){
-          const key = c.oracle_id || c.id;
-          const cur = bestByOracle.get(key);
-          if (!cur) { bestByOracle.set(key, c); continue; }
-          const curJ = (cur.lang === "ja") ? 1 : 0;
-          const cJ = (c.lang === "ja") ? 1 : 0;
-          if (cJ > curJ) bestByOracle.set(key, c);
-        }
-        // ただし collapseSame がOFFのときは「全部見たい」ので、ここで置き換えない
-        // → collapseSame がONのときだけ bestByOracle を採用
-        if (collapseSame){
-          rawCards = Array.from(bestByOracle.values());
-        }
-      }
 
       let cards = rawCards.map(normalizeCard);
       cards = sortResults(cards, s, preferJa);
@@ -988,7 +1026,6 @@
     renderDeck();
   }
 
-  // keepZero=true のときは 0枚でも消さない（モーダルが閉じないため）
   function changeQty(board, cardId, delta, keepZero=false){
     const obj = boardObj(board);
     const it = obj[cardId];
@@ -1004,7 +1041,6 @@
     state.deck.updatedAt = new Date().toISOString();
     renderDeck();
 
-    // モーダル更新（閉じない）
     if (state.openCard && state.openCard.board === board && state.openCard.id === cardId){
       renderCardModal();
     }
@@ -1016,7 +1052,7 @@
     const b = boardObj(to);
     const it = a[cardId];
     if (!it) return;
-    if ((it.qty||0) <= 0) return; // 0枚は移動しない
+    if ((it.qty||0) <= 0) return;
 
     if (b[cardId]) b[cardId].qty += it.qty;
     else b[cardId] = it;
@@ -1025,7 +1061,6 @@
     state.deck.updatedAt = new Date().toISOString();
     renderDeck();
 
-    // 開いてるモーダルの対象を移動先に更新
     if (state.openCard && state.openCard.id === cardId){
       state.openCard.board = to;
       renderCardModal();
@@ -1058,7 +1093,6 @@
     list.innerHTML = "";
 
     for (const c of state.results){
-      // ---- grid card ----
       const wrap = document.createElement("div");
       wrap.className = "card";
 
@@ -1077,7 +1111,6 @@
 
       const sub = document.createElement("div");
       sub.className = "sub";
-      // 検索結果のサブ情報は残す（必要なら後で削れます）
       sub.textContent = `${c.set}${c.collector ? " #" + c.collector : ""}${c.lang ? " / " + c.lang : ""}${c.released_at ? " / " + c.released_at : ""}`;
 
       const actions = document.createElement("div");
@@ -1100,7 +1133,6 @@
       wrap.append(img, meta);
       grid.appendChild(wrap);
 
-      // ---- list row (buttons under name) ----
       const row = document.createElement("div");
       row.className = "row";
 
@@ -1134,7 +1166,6 @@
 
       ractions.append(lMain, lSide, lOpen);
 
-      // サブ行は任意（邪魔ならここ消してOK）
       const rsub = document.createElement("div");
       rsub.className = "rsub";
       rsub.textContent = `${c.set}${c.collector ? " #" + c.collector : ""}${c.lang ? " / " + c.lang : ""}${c.released_at ? " / " + c.released_at : ""}`;
@@ -1215,7 +1246,7 @@
   }
 
   function closeCardModal(){
-    cleanupZeros();            // 閉じる時だけ0枚を掃除
+    cleanupZeros();
     state.openCard = null;
     hideOverlay("cardModalOverlay");
     renderDeck();
@@ -1235,7 +1266,7 @@
 
     $("cardModalTitle").textContent = `${board === "main" ? "Main" : "Side"}のカード操作`;
 
-    // 要望：カード名の下の「USG #174 / ja / 1998-...」など1行を非表示 → その行を出さない
+    // カード名の下の "USG #174 / ja / ..." の行は出さない
     body.innerHTML = `
       <div class="cardModalRow">
         <img src="${safe.image || ""}" alt="">
@@ -1294,7 +1325,7 @@
     refreshDeckSelect();
   }
 
-  function loadDeckByName(name){
+  async function loadDeckByName(name){
     const store = loadStore();
     const d = store.decks[name];
     if (!d){ setStatus(`見つかりません: ${name}`); return; }
@@ -1307,6 +1338,11 @@
     };
     setCurrentDeckName(name);
     renderDeck();
+
+    // 既存デッキの英語名 → 日本語名へ補正
+    await upgradeDeckNamesToJapanese();
+    renderDeck();
+
     setStatus(`読み込みました: ${name}`);
   }
 
@@ -1347,7 +1383,12 @@
   $("q").addEventListener("keydown", (e)=>{ if (e.key==="Enter") searchCards($("q").value); });
 
   $("order").addEventListener("change", ()=>{ if ($("q").value.trim()) searchCards($("q").value); });
-  $("preferJa").addEventListener("change", ()=>{ if ($("q").value.trim()) searchCards($("q").value); });
+  $("preferJa").addEventListener("change", async ()=>{
+    if ($("q").value.trim()) searchCards($("q").value);
+    // デッキ側もその場で可能なら日本語化
+    await upgradeDeckNamesToJapanese();
+    renderDeck();
+  });
   $("collapseSame").addEventListener("change", ()=>{ if ($("q").value.trim()) searchCards($("q").value); });
 
   $("viewMode").addEventListener("change", ()=> setSearchView($("viewMode").value));
@@ -1377,10 +1418,10 @@
     if (!confirm("新規デッキを作成します（未保存の変更は失われます）。よろしいですか？")) return;
     newDeck();
   };
-  $("btnLoadDeck").onclick = () => {
+  $("btnLoadDeck").onclick = async () => {
     const name = $("deckSelect").value;
     if (!name){ setStatus("読み込むデッキを選択してください"); return; }
-    loadDeckByName(name);
+    await loadDeckByName(name);
     closeSettingsModal();
   };
   $("btnDeleteDeck").onclick = () => {
