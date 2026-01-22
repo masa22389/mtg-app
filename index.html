@@ -104,7 +104,7 @@
     .tileWrap { padding:10px; display:block; }
     .tileWrap.collapsed { display:none; }
 
-    /* ★横6寄せやすく：min幅を少し下げる */
+    /* 横6寄せやすく：min幅を少し下げる */
     .tileGrid {
       display:grid;
       grid-template-columns: repeat(auto-fill, minmax(48px, 1fr));
@@ -123,6 +123,9 @@
       user-select:none;
       -webkit-tap-highlight-color: transparent;
       touch-action: manipulation;
+
+      /* ★iOS長押しのメニュー抑止（-2対策の補助） */
+      -webkit-touch-callout: none;
     }
     .tile img { width:100%; aspect-ratio:0.714; object-fit:cover; display:block; background:#07080c; pointer-events:none; }
     .badge {
@@ -254,7 +257,6 @@
         <div class="deckbar">
           <span class="pill">現在: <b id="currentDeckName">（未保存）</b></span>
 
-          <!-- ★ソートは共通で1つだけ -->
           <label>並び
             <select id="deckSort">
               <option value="name">名前</option>
@@ -300,8 +302,7 @@
           <button id="btnClearBoards" style="flex:1;">Main/Side 全消し</button>
         </div>
 
-        <!-- エクスポートは設定へ移動。ここは出力欄だけ残す（任意） -->
-        <textarea id="exportBox" placeholder="設定→エクスポートでここに出力（コピー用）"></textarea>
+        <!-- ★エクスポート欄は削除（設定内へ移動） -->
 
         <!-- ===== Deck Menu Modal ===== -->
         <div id="deckModal" class="modal">
@@ -326,10 +327,13 @@
                 <button id="btnDeleteDeck">削除</button>
               </div>
 
-              <!-- ★エクスポートをここへ -->
-              <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:4px;">
+              <!-- ★エクスポート：ボタン→モーダル内で表示 -->
+              <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:4px; align-items:center;">
                 <button id="btnExport">エクスポート</button>
+                <span class="pill">出力は下に表示</span>
               </div>
+
+              <textarea id="exportBox" placeholder="エクスポート結果がここに出ます（コピー用）"></textarea>
 
               <div class="status" style="margin-top:6px;">
                 ※エクスポートは Main/Side を含むテキストを出力します
@@ -756,7 +760,7 @@
     lines.push("Side");
     for (const it of listEntries(state.deck.side, mode)) lines.push(`${it.qty} ${it.name}`);
     $("exportBox").value = lines.join("\n");
-    setStatus("エクスポートしました（出力欄をコピーしてください）");
+    setStatus("エクスポートしました（設定内の出力欄をコピーしてください）");
   }
 
   function clearBoards() {
@@ -922,6 +926,10 @@
     const LONG_PRESS_MS = 500;
     let pressTimer = null;
     let longPressed = false;
+
+    // ★長押し直後にcontextmenuが来る端末がある → その時刻を覚えて無視
+    let lastLongPressAt = 0;
+
     let lastTapMs = 0;
     let pendingSingle = null;
 
@@ -938,8 +946,9 @@
       clearPress();
       pressTimer = setTimeout(() => {
         longPressed = true;
+        lastLongPressAt = Date.now();
         cancelSingle();
-        changeQty(boardName, cardId, -1);
+        changeQty(boardName, cardId, -1); // ★ここは1回だけ
       }, LONG_PRESS_MS);
     });
 
@@ -947,9 +956,6 @@
     tile.addEventListener("pointercancel", () => clearPress());
     tile.addEventListener("pointerleave", () => clearPress());
 
-    // ★ダブルタップで click(+1) が2回走る問題対策：
-    // - まず「単タップ」は少し遅延させる
-    // - その間に2回目タップが来たら「移動」だけ実行して単タップ(+1)をキャンセル
     tile.addEventListener("click", (e) => {
       e.preventDefault();
       if (longPressed) { longPressed = false; return; }
@@ -976,10 +982,13 @@
       e.preventDefault();
       clearPress();
       cancelSingle();
+
+      // ★長押し減算(-1)の直後に来たcontextmenuは無視（-2防止）
+      if (Date.now() - lastLongPressAt < 800) return;
+
       changeQty(boardName, cardId, -1);
     });
 
-    // PCのダブルクリックも移動に
     tile.addEventListener("dblclick", (e) => {
       e.preventDefault();
       clearPress();
@@ -1041,18 +1050,14 @@
   $("viewModeList").onclick = () => setResultsMode("list");
 
   $("btnClearBoards").onclick = clearBoards;
-
-  // ソート変更で即反映
   $("deckSort").addEventListener("change", renderDeck);
 
-  // Deck menu open/close
   $("btnDeckMenu").onclick = openDeckMenu;
   $("btnCloseDeckMenu").onclick = closeDeckMenu;
   $("deckModal").addEventListener("click", (e) => {
     if (e.target && e.target.id === "deckModal") closeDeckMenu();
   });
 
-  // Save/Load/New/Delete/Export (modal)
   $("btnSaveDeck").onclick = saveCurrentDeck;
   $("btnLoadDeck").onclick = () => {
     const name = $("deckSelect").value;
@@ -1071,7 +1076,6 @@
   };
   $("btnExport").onclick = () => exportDeck();
 
-  // Accordion toggle
   $("mainHead").addEventListener("click", () => {
     state.deckUI.mainOpen = !state.deckUI.mainOpen;
     saveDeckUI();
