@@ -83,7 +83,7 @@
       font-variant-numeric: tabular-nums;
     }
 
-    /* ===== Search toolbar layout (requested) ===== */
+    /* ===== Search toolbar layout ===== */
     .searchToolbar{
       margin-top:12px;
       display:flex;
@@ -129,10 +129,7 @@
     }
     button:hover{ background:#1b2130; }
 
-    /* search dropdowns shouldn't be super wide */
-    select{
-      max-width: 220px;
-    }
+    select{ max-width: 220px; }
     #order{ width: 190px; }
     #viewMode{ width: 160px; }
 
@@ -170,14 +167,29 @@
       background:#0f1117;
       display:flex;
       flex-direction:column;
+      position:relative;
     }
     .card img{ width:100%; aspect-ratio: 0.714; object-fit:cover; background:#0b0c10; }
     .card .meta{ padding:10px; display:flex; flex-direction:column; gap:8px; }
     .card .name{ font-size:13px; line-height:1.25; font-weight:900; }
     .card .sub{ font-size:12px; color:var(--muted); }
-    .card .actions{ display:flex; gap:6px; flex-wrap:wrap; }
+    .card .actions{ display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
 
-    /* ===== Search results list (buttons under name, more dense) ===== */
+    /* ★ favorite btn */
+    .favBtn{
+      margin-left:auto;
+      padding:10px 12px;
+      border-radius:12px;
+      border:1px solid rgba(255,255,255,.18);
+      background: rgba(255,255,255,.06);
+      font-weight:900;
+    }
+    .favBtn.on{
+      background: rgba(255,255,255,.14);
+      border-color: rgba(255,255,255,.25);
+    }
+
+    /* ===== Search results list (dense) ===== */
     .list{
       display:flex;
       flex-direction:column;
@@ -222,6 +234,7 @@
       gap:8px;
       flex-wrap:wrap;
       margin-top:2px;
+      align-items:center;
     }
     .row .ractions button{
       padding:10px 12px;
@@ -313,14 +326,13 @@
       pointer-events:none;
     }
 
-    /* Mobile layout */
     @media (max-width: 980px){
       .boards{ flex-direction: column; }
       .tileGrid{ max-height: min(46dvh, 46vh); }
       .tabsWrap{ max-width: 100%; }
       select{ max-width: 100%; }
     }
-    /* Force 6 columns on phones (requested) */
+    /* Force 6 columns on phones */
     @media (max-width: 520px){
       .tileGrid{
         grid-template-columns: repeat(6, minmax(0, 1fr));
@@ -331,7 +343,7 @@
       #viewMode{ width: 150px; }
     }
 
-    /* ===== Modal (smartphone safe) ===== */
+    /* ===== Modal ===== */
     .modalOverlay{
       position: fixed;
       inset: 0;
@@ -385,7 +397,6 @@
       .modal{ max-height: min(88dvh, 88vh); border-radius: 18px; }
     }
 
-    /* Card modal layout */
     .cardModalRow{
       display:grid;
       grid-template-columns: 120px 1fr;
@@ -430,8 +441,8 @@
     .hline{ height:1px; background:rgba(255,255,255,.08); margin:14px 0; }
   </style>
 </head>
-<body>
 
+<body>
 <header>
   <div class="topbar">
     <div class="tabsWrap" role="tablist" aria-label="画面切替">
@@ -439,11 +450,11 @@
         <button id="tabSearch" class="tabbtn" role="tab" aria-selected="true">検索</button>
         <button id="tabDeck" class="tabbtn" role="tab" aria-selected="false">デッキ</button>
       </div>
-      <div class="pill" id="verBadge">ver 0.0.3</div>
+      <div class="pill" id="verBadge">ver 0.0.0</div>
     </div>
   </div>
 
-  <!-- Search controls (layout per request) -->
+  <!-- Search controls -->
   <div id="searchToolbar" class="searchToolbar">
     <div class="searchRow1">
       <input id="q" type="text" placeholder="検索" />
@@ -456,6 +467,8 @@
         <option value="released">並び（発売日）</option>
         <option value="set">並び（セット）</option>
       </select>
+
+      <button id="btnFavOnly" title="お気に入りのみ表示">★ お気に入り</button>
 
       <button id="btnClear">クリア</button>
 
@@ -473,7 +486,7 @@
 </header>
 
 <div class="content">
-  <!-- ===== Search ===== -->
+  <!-- Search -->
   <section id="viewSearch" class="view active">
     <div class="panel">
       <div id="resultsGrid" class="grid"></div>
@@ -482,7 +495,7 @@
     </div>
   </section>
 
-  <!-- ===== Deck ===== -->
+  <!-- Deck -->
   <section id="viewDeck" class="view">
     <div class="panel">
       <div class="deckWrap">
@@ -533,13 +546,14 @@
         <div style="display:flex; gap:8px; flex-wrap:wrap;">
           <button id="btnClearBoards" style="flex:1;">Main/Side 全消し</button>
         </div>
+
         <div class="status" id="deckStatus">待機中</div>
       </div>
     </div>
   </section>
 </div>
 
-<!-- ===== Card Operation Modal ===== -->
+<!-- Card Operation Modal -->
 <div id="cardModalOverlay" class="modalOverlay" aria-hidden="true">
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="cardModalTitle">
     <div class="modalHeader">
@@ -550,7 +564,7 @@
   </div>
 </div>
 
-<!-- ===== Deck Settings Modal ===== -->
+<!-- Deck Settings Modal -->
 <div id="settingsModalOverlay" class="modalOverlay" aria-hidden="true">
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="settingsModalTitle">
     <div class="modalHeader">
@@ -579,29 +593,18 @@
         <button id="btnLoadDeck" style="flex:1;">読み込み</button>
         <button id="btnDeleteDeck" style="flex:1;">削除</button>
       </div>
-
-      <div class="hline"></div>
-
-      <div style="display:flex; gap:10px; flex-wrap:wrap;">
-        <button id="btnCleanupZeros" style="flex:1;">0枚カードを掃除</button>
-      </div>
-
-      <div style="margin-top:10px; font-size:12px; color:var(--muted); text-align:center;">
-        ※エクスポート機能は必要なら復活できます
-      </div>
     </div>
   </div>
 </div>
 
-<script src="./app.js"></script>
-  
+<!-- JS split -->
+<script src="./app.js?v=1"></script>
+
 <!-- Service Worker -->
 <script>
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("./se.js").catch(() => {});
+  navigator.serviceWorker.register("./sw.js").catch(() => {});
 }
 </script>
-
 </body>
 </html>
-
