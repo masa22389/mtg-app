@@ -31,8 +31,16 @@
       backdrop-filter: blur(8px);
       z-index:10;
     }
-    .topbar{ display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; }
-    .tabs{ display:flex; gap:8px; }
+
+    .topbar{ display:flex; align-items:center; justify-content:flex-start; gap:10px; flex-wrap:wrap; }
+    .tabs{
+      display:flex;
+      gap:8px;
+      align-items:center;
+      padding-bottom:8px;
+      border-bottom:3px double rgba(255,255,255,.12); /* ← 二重線 */
+      width:100%;
+    }
     .tabbtn{
       padding:10px 12px;
       border-radius:12px;
@@ -44,9 +52,29 @@
     }
     .tabbtn[aria-selected="true"]{ background:#1b2130; outline:2px solid rgba(255,255,255,.10); }
 
-    .hint{ font-size:12px; color:var(--muted); line-height:1.4; }
+    .pill{
+      font-size:11px;
+      color:var(--muted);
+      border:1px solid var(--line);
+      background:rgba(255,255,255,.03);
+      padding:4px 8px;
+      border-radius:999px;
+      white-space:nowrap;
+    }
 
-    .toolbar{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:10px; }
+    /* ===== Search toolbar layout ===== */
+    .toolbar{
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+      margin-top:10px;
+    }
+    .rowBar{
+      display:flex;
+      gap:10px;
+      align-items:center;
+      flex-wrap:wrap;
+    }
     input[type="text"], input[type="search"]{
       padding:10px 12px;
       border-radius:10px;
@@ -54,7 +82,7 @@
       background:#0f1117;
       color:var(--text);
     }
-    input#q{ flex:1; min-width: 240px; }
+    input#q{ flex:1; min-width: 180px; }
     select, button{
       padding:10px 12px;
       border-radius:10px;
@@ -65,6 +93,13 @@
     }
     button:hover{ background:#1b2130; }
     label{ display:flex; align-items:center; gap:8px; font-size:12px; color:var(--muted); user-select:none; }
+    .rowChecks{ gap:14px; }
+
+    .btnPrimary{
+      font-weight:900;
+      background:#1b2130;
+    }
+    .btnPrimary:hover{ background:#232b3d; }
 
     .content{ padding:12px; }
     .panel{ background:var(--panel); border:1px solid var(--line); border-radius:12px; overflow:hidden; }
@@ -154,15 +189,6 @@
     .deckWrap{ padding:12px; display:flex; flex-direction:column; gap:12px; }
     .deckTop{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; justify-content:space-between; }
     .deckTopLeft{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-    .pill{
-      font-size:11px;
-      color:var(--muted);
-      border:1px solid var(--line);
-      background:rgba(255,255,255,.03);
-      padding:4px 8px;
-      border-radius:999px;
-      white-space:nowrap;
-    }
 
     .boards{ display:flex; gap:10px; }
     .board{
@@ -370,32 +396,44 @@
 
 <header>
   <div class="topbar">
-    <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
-      <div class="tabs" role="tablist" aria-label="画面切替">
-        <button id="tabSearch" class="tabbtn" role="tab" aria-selected="true">検索</button>
+    <div class="tabs" role="tablist" aria-label="画面切替">
+      <button id="tabSearch" class="tabbtn" role="tab" aria-selected="true">検索</button>
+
+      <div style="display:flex; align-items:center; gap:8px;">
         <button id="tabDeck" class="tabbtn" role="tab" aria-selected="false">デッキ</button>
+        <div class="pill" id="verBadge">ver 0.0.2</div>
       </div>
-      <div class="hint">デッキ：カードをタップ → 操作（+ / - / 移動）</div>
     </div>
-    <div class="pill" id="verBadge">ver 0.0.1</div>
   </div>
 
   <div id="searchToolbar" class="toolbar">
-    <input id="q" type="text" placeholder='検索（例: tundra / bayou / 稲妻 / t:creature c:u ）' />
-    <select id="order">
-      <option value="name">並び: 名前</option>
-      <option value="released">並び: 発売日</option>
-      <option value="set">並び: セット</option>
-    </select>
+    <!-- Row 1: 検索ボックス + 検索ボタン -->
+    <div class="rowBar">
+      <input id="q" type="text" placeholder="検索" />
+      <button id="btnSearch" class="btnPrimary">検索</button>
+    </div>
 
-    <button id="btnViewGrid">グリッド</button>
-    <button id="btnViewList">リスト</button>
+    <!-- Row 2: ソート + クリア + 表示（ドロップダウン） -->
+    <div class="rowBar">
+      <select id="order">
+        <option value="name">並び: 名前</option>
+        <option value="released">並び: 発売日</option>
+        <option value="set">並び: セット</option>
+      </select>
 
-    <label><input id="preferJa" type="checkbox" checked> 日本語版を優先（あれば）</label>
-    <label><input id="collapseSame" type="checkbox"> 同名カードは1種類だけ（代表=最新印刷）</label>
+      <button id="btnClear">クリア</button>
 
-    <button id="btnSearch">検索</button>
-    <button id="btnClear">クリア</button>
+      <select id="viewMode">
+        <option value="grid">表示: グリッド</option>
+        <option value="list">表示: リスト</option>
+      </select>
+    </div>
+
+    <!-- Row 3: チェック -->
+    <div class="rowBar rowChecks">
+      <label><input id="preferJa" type="checkbox" checked> 日本語版を優先（あれば）</label>
+      <label><input id="collapseSame" type="checkbox"> 同名カードは1種類だけ（代表=最新印刷）</label>
+    </div>
   </div>
 </header>
 
@@ -523,7 +561,7 @@
   const $ = (id) => document.getElementById(id);
 
   // ===== Version =====
-  const APP_VERSION = "0.0.1";
+  const APP_VERSION = "0.0.2";
 
   // ===== Search view mode (grid/list) =====
   const SEARCH_VIEW_KEY = "mtg_search_view";
@@ -532,12 +570,12 @@
   // ===== Storage keys (backward compatible) =====
   const STORE_KEYS = [
     "mtg_deck_store_tabs_v2", // ← 旧版（あなたの過去デッキがここ）
-    "mtg_deck_store_v2",  // current
-    "mtg_deck_store_v1",  // old candidates
+    "mtg_deck_store_v2",
+    "mtg_deck_store_v1",
     "mtg_deck_store",
     "mtg_deck_store_v0"
   ];
-  const STORE_KEY = STORE_KEYS[0]; // always save into v2
+  const STORE_KEY = STORE_KEYS[0];
 
   const state = {
     results: [],
@@ -584,11 +622,13 @@
     const isGrid = searchView === "grid";
     $("resultsGrid").style.display = isGrid ? "grid" : "none";
     $("resultsList").style.display = isGrid ? "none" : "flex";
+    // UI反映
+    const vm = $("viewMode");
+    if (vm) vm.value = searchView;
   }
 
   /* ===== Storage ===== */
   function loadStore(){
-    // Try keys in order; migrate to v2 if found in older key.
     for (const key of STORE_KEYS){
       try{
         const raw = localStorage.getItem(key);
@@ -1194,8 +1234,8 @@
   $("preferJa").addEventListener("change", ()=>{ if ($("q").value.trim()) searchCards($("q").value); });
   $("collapseSame").addEventListener("change", ()=>{ if ($("q").value.trim()) searchCards($("q").value); });
 
-  $("btnViewGrid").onclick = () => setSearchView("grid");
-  $("btnViewList").onclick = () => setSearchView("list");
+  // 表示モード（グリッド/リスト）はドロップダウンで切替
+  $("viewMode").addEventListener("change", ()=> setSearchView($("viewMode").value));
 
   $("btnClearBoards").onclick = () => {
     if (!confirm("Main/Side を全消しします。よろしいですか？")) return;
@@ -1250,7 +1290,7 @@
   renderResults();
   renderDeck();
   setStatus("待機中");
-  setSearchView(searchView);
+  setSearchView(searchView);       // これで viewMode も同期される
   syncViewFromHash();
 
 })();
@@ -1265,4 +1305,3 @@ if ("serviceWorker" in navigator) {
 
 </body>
 </html>
-
