@@ -87,15 +87,27 @@
 
     .boards { display:flex; gap:10px; }
     .board { flex:1; border:1px solid var(--line); border-radius:12px; background:#0f1117; overflow:hidden; min-width:0; }
-    .boardhead { padding:10px 10px; border-bottom:1px solid var(--line); display:flex; align-items:center; justify-content:space-between; gap:8px; }
-    .boardhead .title { font-size:13px; color:var(--text); font-weight:700; }
+    .boardhead {
+      padding:10px 10px; border-bottom:1px solid var(--line);
+      display:flex; align-items:center; justify-content:space-between; gap:8px;
+      cursor:pointer; user-select:none;
+    }
+    .boardhead .left { display:flex; gap:8px; align-items:center; }
+    .caret {
+      width:28px; height:28px; display:grid; place-items:center;
+      border:1px solid var(--line); border-radius:10px; background:#0b0c10; color:var(--text);
+      font-weight:900; line-height:1;
+    }
+    .boardhead .title { font-size:13px; color:var(--text); font-weight:800; }
     .boardhead .count { font-size:12px; color:var(--muted); font-variant-numeric: tabular-nums; }
 
-    .tileWrap { padding:10px; }
-    /* ★横を増やす（=小さめ） */
+    .tileWrap { padding:10px; display:block; }
+    .tileWrap.collapsed { display:none; }
+
+    /* ★横6寄せやすく：min幅を少し下げる */
     .tileGrid {
       display:grid;
-      grid-template-columns: repeat(auto-fill, minmax(52px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(48px, 1fr));
       gap:5px;
       max-height: 58vh;
       overflow:auto;
@@ -128,10 +140,9 @@
       font-variant-numeric: tabular-nums;
       pointer-events:none;
     }
-    .tileFooter { display:none; } /* アプリっぽく、タイル下の名前は非表示 */
 
     .tileHelp { font-size:11px; color:var(--muted); margin-top:8px; line-height:1.35; }
-    textarea { width:100%; height:140px; border-radius:10px; border:1px solid var(--line); background:#0f1117; color:var(--text); padding:10px; resize:vertical; }
+    textarea { width:100%; height:160px; border-radius:10px; border:1px solid var(--line); background:#0f1117; color:var(--text); padding:10px; resize:vertical; }
 
     /* Views */
     .view { display:none; }
@@ -157,7 +168,7 @@
 
     @media (max-width: 980px) {
       .boards { flex-direction: column; }
-      .tileGrid { max-height: 46vh; grid-template-columns: repeat(auto-fill, minmax(50px, 1fr)); gap:5px; }
+      .tileGrid { max-height: 46vh; grid-template-columns: repeat(auto-fill, minmax(46px, 1fr)); gap:5px; }
       .row { grid-template-columns: 52px 1fr; }
       .row .ractions { grid-column: 1 / -1; justify-content:flex-start; }
       .row img { width:52px; height:72px; }
@@ -240,20 +251,12 @@
     <div class="panel">
       <div class="deck">
 
-        <!-- ★ボタン群は設定メニューへ移動、ここは表示/ソート/設定だけ -->
         <div class="deckbar">
           <span class="pill">現在: <b id="currentDeckName">（未保存）</b></span>
 
-          <label>MAIN並び
-            <select id="mainSort">
-              <option value="name">名前</option>
-              <option value="cmc">マナコスト</option>
-              <option value="type">タイプ</option>
-            </select>
-          </label>
-
-          <label>SIDE並び
-            <select id="sideSort">
+          <!-- ★ソートは共通で1つだけ -->
+          <label>並び
+            <select id="deckSort">
               <option value="name">名前</option>
               <option value="cmc">マナコスト</option>
               <option value="type">タイプ</option>
@@ -265,22 +268,28 @@
 
         <div class="boards">
           <div class="board">
-            <div class="boardhead">
-              <div class="title">Main</div>
+            <div id="mainHead" class="boardhead" title="タップで開閉">
+              <div class="left">
+                <div id="mainCaret" class="caret">▼</div>
+                <div class="title">Main</div>
+              </div>
               <div class="count"><span id="mainCount">0</span>枚</div>
             </div>
-            <div class="tileWrap">
+            <div id="mainWrap" class="tileWrap">
               <div id="mainTiles" class="tileGrid"></div>
               <div class="tileHelp">操作：タップ/クリック +1 ／ 長押し(0.5秒) or 右クリック -1 ／ ダブルタップで Sideへ移動</div>
             </div>
           </div>
 
           <div class="board">
-            <div class="boardhead">
-              <div class="title">Side</div>
+            <div id="sideHead" class="boardhead" title="タップで開閉">
+              <div class="left">
+                <div id="sideCaret" class="caret">▼</div>
+                <div class="title">Side</div>
+              </div>
               <div class="count"><span id="sideCount">0</span>枚</div>
             </div>
-            <div class="tileWrap">
+            <div id="sideWrap" class="tileWrap">
               <div id="sideTiles" class="tileGrid"></div>
               <div class="tileHelp">操作：タップ/クリック +1 ／ 長押し(0.5秒) or 右クリック -1 ／ ダブルタップで Mainへ移動</div>
             </div>
@@ -288,10 +297,11 @@
         </div>
 
         <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
-          <button id="btnExport" style="flex:1;">エクスポート</button>
-          <button id="btnClearBoards">Main/Side 全消し</button>
+          <button id="btnClearBoards" style="flex:1;">Main/Side 全消し</button>
         </div>
-        <textarea id="exportBox" placeholder="ここにデッキリストを出力（コピー用）"></textarea>
+
+        <!-- エクスポートは設定へ移動。ここは出力欄だけ残す（任意） -->
+        <textarea id="exportBox" placeholder="設定→エクスポートでここに出力（コピー用）"></textarea>
 
         <!-- ===== Deck Menu Modal ===== -->
         <div id="deckModal" class="modal">
@@ -316,8 +326,13 @@
                 <button id="btnDeleteDeck">削除</button>
               </div>
 
+              <!-- ★エクスポートをここへ -->
+              <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:4px;">
+                <button id="btnExport">エクスポート</button>
+              </div>
+
               <div class="status" style="margin-top:6px;">
-                ※保存/読み込み/削除/新規はここから操作します
+                ※エクスポートは Main/Side を含むテキストを出力します
               </div>
             </div>
           </div>
@@ -336,11 +351,13 @@
 
   const STORE_KEY = "mtg_deck_store_tabs_v2";
   const SEARCH_UI_KEY = "mtg_search_ui_v1";
+  const DECK_UI_KEY = "mtg_deck_ui_v1";
 
   const state = {
     results: [],
     currentDeckName: "",
     deck: newEmptyDeck(""),
+    deckUI: loadDeckUI(),
   };
 
   /* ===== View switching (Search / Deck) ===== */
@@ -391,6 +408,34 @@
     $("resultsList").style.display = isGrid ? "none" : "flex";
     $("viewModeGrid").setAttribute("aria-selected", String(isGrid));
     $("viewModeList").setAttribute("aria-selected", String(!isGrid));
+  }
+
+  /* ===== Deck UI state (accordion) ===== */
+  function loadDeckUI(){
+    try{
+      const raw = localStorage.getItem(DECK_UI_KEY);
+      const v = raw ? JSON.parse(raw) : {};
+      return {
+        mainOpen: (v.mainOpen ?? true),
+        sideOpen: (v.sideOpen ?? true),
+      };
+    }catch{
+      return { mainOpen:true, sideOpen:true };
+    }
+  }
+  function saveDeckUI(){
+    localStorage.setItem(DECK_UI_KEY, JSON.stringify(state.deckUI));
+  }
+
+  function applyAccordion(){
+    const mainOpen = !!state.deckUI.mainOpen;
+    const sideOpen = !!state.deckUI.sideOpen;
+
+    $("mainWrap").classList.toggle("collapsed", !mainOpen);
+    $("sideWrap").classList.toggle("collapsed", !sideOpen);
+
+    $("mainCaret").textContent = mainOpen ? "▼" : "▶";
+    $("sideCaret").textContent = sideOpen ? "▼" : "▶";
   }
 
   /* ===== helpers ===== */
@@ -456,7 +501,6 @@
     return "";
   }
 
-  // ★デッキソート用に cmc / mana_cost / type_line を持つ
   function normalizeCard(card) {
     return {
       id: card.id,
@@ -704,13 +748,15 @@
   }
 
   function exportDeck() {
+    const mode = $("deckSort").value;
     const lines = [];
     lines.push("Main");
-    for (const it of listEntries(state.deck.main, $("mainSort").value)) lines.push(`${it.qty} ${it.name}`);
+    for (const it of listEntries(state.deck.main, mode)) lines.push(`${it.qty} ${it.name}`);
     lines.push("");
     lines.push("Side");
-    for (const it of listEntries(state.deck.side, $("sideSort").value)) lines.push(`${it.qty} ${it.name}`);
+    for (const it of listEntries(state.deck.side, mode)) lines.push(`${it.qty} ${it.name}`);
     $("exportBox").value = lines.join("\n");
+    setStatus("エクスポートしました（出力欄をコピーしてください）");
   }
 
   function clearBoards() {
@@ -876,9 +922,15 @@
     const LONG_PRESS_MS = 500;
     let pressTimer = null;
     let longPressed = false;
+    let lastTapMs = 0;
+    let pendingSingle = null;
 
     const clearPress = () => {
       if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
+    };
+
+    const cancelSingle = () => {
+      if (pendingSingle) { clearTimeout(pendingSingle); pendingSingle = null; }
     };
 
     tile.addEventListener("pointerdown", () => {
@@ -886,6 +938,7 @@
       clearPress();
       pressTimer = setTimeout(() => {
         longPressed = true;
+        cancelSingle();
         changeQty(boardName, cardId, -1);
       }, LONG_PRESS_MS);
     });
@@ -894,21 +947,43 @@
     tile.addEventListener("pointercancel", () => clearPress());
     tile.addEventListener("pointerleave", () => clearPress());
 
+    // ★ダブルタップで click(+1) が2回走る問題対策：
+    // - まず「単タップ」は少し遅延させる
+    // - その間に2回目タップが来たら「移動」だけ実行して単タップ(+1)をキャンセル
     tile.addEventListener("click", (e) => {
       e.preventDefault();
       if (longPressed) { longPressed = false; return; }
-      changeQty(boardName, cardId, +1);
+
+      const now = Date.now();
+      const isDouble = (now - lastTapMs) < 320;
+      lastTapMs = now;
+
+      if (isDouble) {
+        cancelSingle();
+        const to = boardName === "main" ? "side" : "main";
+        moveCard(boardName, to, cardId);
+        return;
+      }
+
+      cancelSingle();
+      pendingSingle = setTimeout(() => {
+        pendingSingle = null;
+        changeQty(boardName, cardId, +1);
+      }, 260);
     });
 
     tile.addEventListener("contextmenu", (e) => {
       e.preventDefault();
       clearPress();
+      cancelSingle();
       changeQty(boardName, cardId, -1);
     });
 
+    // PCのダブルクリックも移動に
     tile.addEventListener("dblclick", (e) => {
       e.preventDefault();
       clearPress();
+      cancelSingle();
       const to = boardName === "main" ? "side" : "main";
       moveCard(boardName, to, cardId);
     });
@@ -917,7 +992,7 @@
   function makeTile(boardName, it) {
     const tile = document.createElement("div");
     tile.className = "tile";
-    tile.title = `${it.qty}x ${it.name}\nタップ/クリック:+1 / 長押し or 右クリック:-1 / ダブルタップ:移動`;
+    tile.title = `${it.qty}x ${it.name}\nタップ:+1 / 長押し or 右クリック:-1 / ダブルタップ:移動`;
 
     const img = document.createElement("img");
     img.alt = it.name;
@@ -936,7 +1011,7 @@
 
   function renderTiles(container, obj, boardName) {
     container.innerHTML = "";
-    const mode = (boardName === "main") ? $("mainSort").value : $("sideSort").value;
+    const mode = $("deckSort").value;
     for (const it of listEntries(obj, mode)) container.appendChild(makeTile(boardName, it));
   }
 
@@ -945,6 +1020,7 @@
     $("sideCount").textContent = countBoard(state.deck.side);
     renderTiles($("mainTiles"), state.deck.main, "main");
     renderTiles($("sideTiles"), state.deck.side, "side");
+    applyAccordion();
   }
 
   /* ===== events ===== */
@@ -964,12 +1040,10 @@
   $("viewModeGrid").onclick = () => setResultsMode("grid");
   $("viewModeList").onclick = () => setResultsMode("list");
 
-  $("btnExport").onclick = exportDeck;
   $("btnClearBoards").onclick = clearBoards;
 
   // ソート変更で即反映
-  $("mainSort").addEventListener("change", renderDeck);
-  $("sideSort").addEventListener("change", renderDeck);
+  $("deckSort").addEventListener("change", renderDeck);
 
   // Deck menu open/close
   $("btnDeckMenu").onclick = openDeckMenu;
@@ -978,7 +1052,7 @@
     if (e.target && e.target.id === "deckModal") closeDeckMenu();
   });
 
-  // Save/Load/New/Delete (modal)
+  // Save/Load/New/Delete/Export (modal)
   $("btnSaveDeck").onclick = saveCurrentDeck;
   $("btnLoadDeck").onclick = () => {
     const name = $("deckSelect").value;
@@ -995,6 +1069,19 @@
     if (!confirm("新規デッキを作成します（現在の未保存の変更は失われます）。よろしいですか？")) return;
     newDeck();
   };
+  $("btnExport").onclick = () => exportDeck();
+
+  // Accordion toggle
+  $("mainHead").addEventListener("click", () => {
+    state.deckUI.mainOpen = !state.deckUI.mainOpen;
+    saveDeckUI();
+    applyAccordion();
+  });
+  $("sideHead").addEventListener("click", () => {
+    state.deckUI.sideOpen = !state.deckUI.sideOpen;
+    saveDeckUI();
+    applyAccordion();
+  });
 
   /* ===== init ===== */
   refreshDeckSelect();
