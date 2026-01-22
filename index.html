@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>MTG Deck Builder（タブ分割：検索 / デッキ）</title>
+  <title>MTG Deck Builder</title>
 
   <!-- PWA / Mobile -->
   <meta name="theme-color" content="#0b0c10">
@@ -27,22 +27,23 @@
     .tabbtn[aria-selected="true"] { background:#1b2130; outline: 2px solid rgba(255,255,255,.10); }
     .tabhint { font-size:12px; color:var(--muted); line-height:1.4; }
 
-    .toolbar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:10px; }
+    .content { padding:12px; }
+    .panel { background:var(--panel); border:1px solid var(--line); border-radius:12px; overflow:hidden; }
+    .status { padding:10px 12px; border-top:1px solid var(--line); color:var(--muted); font-size:12px; white-space:pre-wrap; }
+
     input[type="text"], input[type="search"], input[type="text"].smallin {
       padding:10px 12px; border-radius:10px; border:1px solid var(--line); background:#0f1117; color:var(--text);
     }
-    input[type="text"]#q { flex:1; min-width: 240px; }
     button, select {
       padding:10px 12px; border-radius:10px; border:1px solid var(--line); background:#171b25; color:var(--text); cursor:pointer;
     }
     button:hover { background:#1b2130; }
     label { display:flex; align-items:center; gap:8px; font-size:12px; color:var(--muted); user-select:none; }
 
-    .content { padding:12px; }
-    .panel { background:var(--panel); border:1px solid var(--line); border-radius:12px; overflow:hidden; }
-    .status { padding:10px 12px; border-top:1px solid var(--line); color:var(--muted); font-size:12px; white-space:pre-wrap; }
+    .pill { font-size:11px; color:var(--muted); border:1px solid var(--line); padding:4px 8px; border-radius:999px; }
 
-    .grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap:10px; padding:12px; }
+    /* Search - grid cards (big) */
+    .grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap:10px; padding:12px; }
     .card { border:1px solid var(--line); border-radius:12px; overflow:hidden; background:#0f1117; display:flex; flex-direction:column; }
     .card img { width:100%; aspect-ratio: 0.714; object-fit: cover; background:#0b0c10; }
     .card .meta { padding:10px; display:flex; flex-direction:column; gap:6px; }
@@ -50,26 +51,55 @@
     .card .sub { font-size:12px; color:var(--muted); }
     .card .actions { display:flex; gap:6px; flex-wrap:wrap; }
 
+    /* Search - list rows (small image + name) */
+    .list { display:flex; flex-direction:column; gap:8px; padding:12px; }
+    .row {
+      display:grid;
+      grid-template-columns: 56px 1fr auto;
+      gap:10px;
+      align-items:center;
+      border:1px solid var(--line);
+      border-radius:12px;
+      background:#0f1117;
+      padding:8px;
+    }
+    .row img {
+      width:56px; height:78px;
+      object-fit:cover;
+      border-radius:8px;
+      background:#0b0c10;
+    }
+    .row .rmeta { min-width:0; }
+    .row .rname {
+      font-size:14px; font-weight:700; line-height:1.2; margin-bottom:4px;
+      overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+    }
+    .row .rsub {
+      font-size:12px; color:var(--muted);
+      overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+    }
+    .row .ractions { display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end; }
+    .row .ractions button { padding:8px 10px; }
+
     /* Deck UI */
     .deck { padding:12px; display:flex; flex-direction:column; gap:12px; }
     .deckbar { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
     .deckbar .smallin { width: 180px; }
-    .pill { font-size:11px; color:var(--muted); border:1px solid var(--line); padding:4px 8px; border-radius:999px; }
 
     .boards { display:flex; gap:10px; }
-    .board { flex:1; border:1px solid var(--line); border-radius:12px; background:#0f1117; overflow:hidden; min-width: 0; }
+    .board { flex:1; border:1px solid var(--line); border-radius:12px; background:#0f1117; overflow:hidden; min-width:0; }
     .boardhead { padding:10px 10px; border-bottom:1px solid var(--line); display:flex; align-items:center; justify-content:space-between; gap:8px; }
     .boardhead .title { font-size:13px; color:var(--text); font-weight:700; }
     .boardhead .count { font-size:12px; color:var(--muted); font-variant-numeric: tabular-nums; }
 
     .tileWrap { padding:10px; }
     .tileGrid {
-      display: grid;
+      display:grid;
       grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
-      gap: 6px;
+      gap:6px;
       max-height: 58vh;
-      overflow: auto;
-      padding-right: 4px;  
+      overflow:auto;
+      padding-right:4px;
     }
     .tile {
       position:relative;
@@ -82,46 +112,41 @@
       -webkit-tap-highlight-color: transparent;
       touch-action: manipulation;
     }
-    .tile img { width:100%; aspect-ratio: 0.714; object-fit: cover; display:block; background:#07080c; pointer-events:none; }
+    .tile img { width:100%; aspect-ratio:0.714; object-fit:cover; display:block; background:#07080c; pointer-events:none; }
     .badge {
-      position: absolute;
-      top: 4px;
-      right: 4px;
-      min-width: 18px;
-      padding: 2px 5px;
-      border-radius: 999px;
-      background: rgba(0,0,0,.75);
-      border: 1px solid rgba(255,255,255,.25);
-      color: #fff;
-      font-size: 11px;
-      font-weight: 700;
-      text-align: center;
+      position:absolute;
+      top:4px; right:4px;
+      min-width:18px;
+      padding:2px 5px;
+      border-radius:999px;
+      background:rgba(0,0,0,.75);
+      border:1px solid rgba(255,255,255,.25);
+      color:#fff;
+      font-size:11px;
+      font-weight:700;
+      text-align:center;
       font-variant-numeric: tabular-nums;
-      pointer-events: none;
+      pointer-events:none;
     }
-    .tileFooter {
-      display: none;
-    }
-    .tile:hover .tileFooter {
-      display: block;
-    }
-    .tileHelp { font-size:11px; color:var(--muted); margin-top:8px; line-height:1.35; }
+    .tileFooter { display:none; } /* アプリっぽく、タイル下の名前は非表示 */
 
+    .tileHelp { font-size:11px; color:var(--muted); margin-top:8px; line-height:1.35; }
     textarea { width:100%; height:140px; border-radius:10px; border:1px solid var(--line); background:#0f1117; color:var(--text); padding:10px; resize:vertical; }
 
     /* Views */
     .view { display:none; }
     .view.active { display:block; }
 
-    /* Mobile */
     @media (max-width: 980px) {
       .boards { flex-direction: column; }
-      .tileGrid { max-height: 46vh; }
-      input[type="text"]#q { min-width: 180px; }
-      .topbar { gap:8px; }
+      .tileGrid { max-height: 46vh; grid-template-columns: repeat(auto-fill, minmax(60px, 1fr)); }
+      .row { grid-template-columns: 52px 1fr; }
+      .row .ractions { grid-column: 1 / -1; justify-content:flex-start; }
+      .row img { width:52px; height:72px; }
     }
   </style>
 </head>
+
 <body>
 <header>
   <div class="topbar">
@@ -129,35 +154,67 @@
       <button id="tabSearch" class="tabbtn" role="tab" aria-selected="true">検索</button>
       <button id="tabDeck" class="tabbtn" role="tab" aria-selected="false">デッキ</button>
     </div>
-    <div class="tabhint" id="tabHint">
-      検索でカードを見つけて追加 → デッキで枚数調整（タップ:+1 / 長押し:-1 / ダブルタップ:移動）
+    <div class="tabhint">
+      検索→追加→デッキで枚数調整（タップ:+1 / 長押し:-1 / ダブルタップ:Main⇔Side移動）
     </div>
-  </div>
-
-  <!-- 検索ビュー専用ツールバー -->
-  <div id="searchToolbar" class="toolbar">
-    <input id="q" type="text" placeholder='検索（例: tundra / bayou / 稲妻 / t:creature c:u ）' />
-    <select id="order">
-      <option value="name">並び: 名前</option>
-      <option value="released">並び: 発売日</option>
-      <option value="set">並び: セット</option>
-    </select>
-
-    <label><input id="preferJa" type="checkbox" checked> 日本語版を優先（あれば）</label>
-    <label><input id="collapseSame" type="checkbox"> 同名カードは1種類だけ（代表=最新印刷）</label>
-
-    <button id="btnSearch">検索</button>
-    <button id="btnClear">クリア</button>
   </div>
 </header>
 
 <div class="content">
+
   <!-- ===== View: Search ===== -->
   <section id="viewSearch" class="view active">
-    <div class="panel">
-      <div id="results" class="grid"></div>
+
+    <!-- Search: Form page -->
+    <div id="searchPageForm" class="panel">
+      <div class="status" style="border-top:none;">検索条件を入力して「検索」を押してください</div>
+
+      <div style="padding:12px; display:flex; flex-direction:column; gap:10px;">
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <input id="q" type="text" placeholder='検索（例: tundra / bayou / 稲妻 / t:creature c:u ）' style="flex:1; min-width:220px;" />
+          <button id="btnSearch">検索</button>
+          <button id="btnClear">クリア</button>
+        </div>
+
+        <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
+          <label><input id="preferJa" type="checkbox" checked> 日本語版を優先（あれば）</label>
+          <label><input id="collapseSame" type="checkbox"> 同名カードは1種類だけ（代表=最新印刷）</label>
+
+          <label style="display:flex; gap:8px; align-items:center;">
+            並び:
+            <select id="order">
+              <option value="name">名前</option>
+              <option value="released">発売日</option>
+              <option value="set">セット</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="status" id="statusForm" style="border-top:1px solid var(--line);">待機中</div>
+      </div>
+    </div>
+
+    <!-- Search: Results page -->
+    <div id="searchPageResults" class="panel" style="display:none;">
+      <div style="padding:10px 12px; border-bottom:1px solid var(--line); display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
+        <div style="display:flex; gap:8px; align-items:center;">
+          <button id="btnBackToForm">← 条件へ戻る</button>
+          <span class="pill">ヒット: <b id="hitCount">0</b></span>
+        </div>
+
+        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+          <span class="pill">表示</span>
+          <button id="viewModeGrid" class="tabbtn" style="padding:8px 10px;">グリッド</button>
+          <button id="viewModeList" class="tabbtn" style="padding:8px 10px;">リスト</button>
+        </div>
+      </div>
+
+      <div id="resultsGrid" class="grid"></div>
+      <div id="resultsList" class="list" style="display:none;"></div>
+
       <div id="status" class="status">待機中</div>
     </div>
+
   </section>
 
   <!-- ===== View: Deck ===== -->
@@ -206,12 +263,15 @@
       </div>
     </div>
   </section>
+
 </div>
 
 <script>
 (() => {
   const $ = (id) => document.getElementById(id);
-  const STORE_KEY = "mtg_deck_store_tabs_v1";
+
+  const STORE_KEY = "mtg_deck_store_tabs_v2";
+  const SEARCH_UI_KEY = "mtg_search_ui_v1";
 
   const state = {
     results: [],
@@ -219,36 +279,62 @@
     deck: newEmptyDeck(""),
   };
 
-  /* ===== View switching ===== */
+  /* ===== View switching (Search / Deck) ===== */
   function setView(view) {
     const isSearch = view === "search";
     $("viewSearch").classList.toggle("active", isSearch);
     $("viewDeck").classList.toggle("active", !isSearch);
-
     $("tabSearch").setAttribute("aria-selected", String(isSearch));
     $("tabDeck").setAttribute("aria-selected", String(!isSearch));
 
-    // 検索時だけ検索ツールバーを見せる（ヘッダがスッキリする）
-    $("searchToolbar").style.display = isSearch ? "flex" : "none";
-
-    // ハッシュ更新（戻る/進むで画面が戻る）
     const nextHash = isSearch ? "#search" : "#deck";
     if (location.hash !== nextHash) history.pushState(null, "", nextHash);
   }
-
   function syncViewFromHash() {
     const h = (location.hash || "").toLowerCase();
     if (h === "#deck") setView("deck");
     else setView("search");
   }
-
   $("tabSearch").onclick = () => setView("search");
   $("tabDeck").onclick = () => setView("deck");
   window.addEventListener("popstate", syncViewFromHash);
   window.addEventListener("hashchange", syncViewFromHash);
 
+  /* ===== Search sub-pages + mode ===== */
+  const searchUI = loadSearchUI();
+
+  function loadSearchUI() {
+    try {
+      const raw = localStorage.getItem(SEARCH_UI_KEY);
+      const v = raw ? JSON.parse(raw) : {};
+      return { page: v.page || "form", mode: v.mode || "grid" };
+    } catch {
+      return { page:"form", mode:"grid" };
+    }
+  }
+  function saveSearchUI() { localStorage.setItem(SEARCH_UI_KEY, JSON.stringify(searchUI)); }
+
+  function setSearchPage(page) {
+    searchUI.page = page; saveSearchUI();
+    $("searchPageForm").style.display = (page === "form") ? "block" : "none";
+    $("searchPageResults").style.display = (page === "results") ? "block" : "none";
+  }
+
+  function setResultsMode(mode) {
+    searchUI.mode = mode; saveSearchUI();
+    const isGrid = mode === "grid";
+    $("resultsGrid").style.display = isGrid ? "grid" : "none";
+    $("resultsList").style.display = isGrid ? "none" : "flex";
+    $("viewModeGrid").setAttribute("aria-selected", String(isGrid));
+    $("viewModeList").setAttribute("aria-selected", String(!isGrid));
+  }
+
   /* ===== helpers ===== */
-  function setStatus(msg) { $("status").textContent = msg; }
+  function setStatus(msg) {
+    $("status").textContent = msg;
+    const sf = $("statusForm");
+    if (sf) sf.textContent = msg;
+  }
 
   function newEmptyDeck(name) {
     return { name, updatedAt: new Date().toISOString(), main: {}, side: {} };
@@ -266,7 +352,6 @@
       return { version: 1, decks: {} };
     }
   }
-
   function saveStore(store) { localStorage.setItem(STORE_KEY, JSON.stringify(store)); }
 
   function refreshDeckSelect() {
@@ -285,7 +370,6 @@
       sel.appendChild(opt);
     }
   }
-
   function setCurrentDeckName(name) {
     state.currentDeckName = name;
     $("currentDeckName").textContent = name ? name : "（未保存）";
@@ -293,11 +377,9 @@
 
   /* ===== Scryfall ===== */
   function looksJapanese(s) { return /[\u3040-\u30FF\u4E00-\u9FFF]/.test(s); }
-
   function isAdvancedQuery(s) {
     return /(^|\s)(t:|c:|o:|oracle:|f:|format:|lang:|is:|set:|cn:|rarity:|type:|pow|tou|cmc)\b/i.test(s) || /[:"]/g.test(s);
   }
-
   function getCardImage(card) {
     if (card.image_uris?.normal) return card.image_uris.normal;
     if (Array.isArray(card.card_faces)) {
@@ -305,7 +387,6 @@
     }
     return "";
   }
-
   function normalizeCard(card) {
     return {
       id: card.id,
@@ -331,27 +412,34 @@
   }
 
   function dateKey(released_at) { return (released_at && typeof released_at === "string") ? released_at : ""; }
+
+  // exact match rank: 0 (exact) first
   function exactRank(cardName, query) {
     const a = (cardName || "").trim().toLowerCase();
     const q = (query || "").trim().toLowerCase();
     return a === q ? 0 : 1;
   }
 
+  // pick representative print: (preferJa -> latest release -> exact match -> tie)
   function pickBestPrint(cards, query, preferJa) {
     let best = null;
     for (const c of cards) {
       if (!best) { best = c; continue; }
+
       if (preferJa) {
         const aj = (c.lang === "ja") ? 0 : 1;
         const bj = (best.lang === "ja") ? 0 : 1;
         if (aj !== bj) { if (aj < bj) best = c; continue; }
       }
+
       const ad = dateKey(c.released_at);
       const bd = dateKey(best.released_at);
-      if (ad !== bd) { if (ad > bd) best = c; continue; }
+      if (ad !== bd) { if (ad > bd) best = c; continue; } // latest
+
       const ae = exactRank(c.name, query);
       const be = exactRank(best.name, query);
       if (ae !== be) { if (ae < be) best = c; continue; }
+
       const aKey = ((c.set||"") + "|" + (c.collector||"") + "|" + (c.id||"")).toLowerCase();
       const bKey = ((best.set||"") + "|" + (best.collector||"") + "|" + (best.id||"")).toLowerCase();
       if (aKey > bKey) best = c;
@@ -372,6 +460,7 @@
     return picked;
   }
 
+  // sort: exact match -> preferJa -> name -> release desc -> set
   function sortResults(cards, query, preferJa) {
     const qLower = (query || "").trim().toLowerCase();
     cards.sort((a, b) => {
@@ -404,13 +493,16 @@
       state.results = [];
       renderResults();
       setStatus("検索ワードを入力してください");
+      setSearchPage("form");
       return;
     }
 
     const preferJa = $("preferJa").checked;
     const collapseSame = $("collapseSame").checked;
+
     setStatus("検索中…");
 
+    // Advanced query
     if (isAdvancedQuery(s)) {
       const queries = (preferJa && looksJapanese(s) && !/(^|\s)lang:/i.test(s))
         ? [`lang:ja ${s}`, s]
@@ -426,15 +518,18 @@
           state.results = cards;
           renderResults();
           setStatus(`ヒット: ${cards.length}件\nq=${q}`);
+          setSearchPage("results");
           return;
         }
       }
       state.results = [];
       renderResults();
       setStatus("見つかりませんでした");
+      setSearchPage("results");
       return;
     }
 
+    // Normal keyword: prefer ja + any language merge
     const mergedById = new Map();
     const pushAll = (arr) => { for (const c of arr) mergedById.set(c.id, c); };
 
@@ -452,14 +547,14 @@
       state.results = cards;
       renderResults();
       setStatus(`ヒット: ${cards.length}件\nq=${preferJa ? "lang:ja " + s + " + " + s : s}`);
-
-      // 検索→追加が目的なら、必要ならここで自動的に検索画面に留める（何もしない）
+      setSearchPage("results");
       return;
     }
 
     state.results = [];
     renderResults();
     setStatus("見つかりませんでした");
+    setSearchPage("results");
   }
 
   /* ===== Deck (Main/Side) ===== */
@@ -566,12 +661,17 @@
     setStatus("新規デッキを作成しました");
   }
 
-  /* ===== Render results ===== */
+  /* ===== Render results (Grid + List) ===== */
   function renderResults() {
-    const el = $("results");
-    el.innerHTML = "";
+    const grid = $("resultsGrid");
+    const list = $("resultsList");
+    grid.innerHTML = "";
+    list.innerHTML = "";
+
+    $("hitCount").textContent = String(state.results.length);
 
     for (const c of state.results) {
+      // grid card
       const wrap = document.createElement("div");
       wrap.className = "card";
 
@@ -609,13 +709,55 @@
 
       actions.append(btnMain, btnSide, btnOpen);
       meta.append(name, sub, actions);
-
       wrap.append(img, meta);
-      el.appendChild(wrap);
+      grid.appendChild(wrap);
+
+      // list row
+      const row = document.createElement("div");
+      row.className = "row";
+
+      const limg = document.createElement("img");
+      limg.loading = "lazy";
+      limg.alt = c.name;
+      limg.src = c.image || "";
+      limg.onerror = () => { limg.style.display = "none"; };
+
+      const rmeta = document.createElement("div");
+      rmeta.className = "rmeta";
+
+      const rname = document.createElement("div");
+      rname.className = "rname";
+      rname.textContent = c.name;
+
+      const rsub = document.createElement("div");
+      rsub.className = "rsub";
+      rsub.textContent = `${c.set}${c.collector ? " #" + c.collector : ""}${c.lang ? " / " + c.lang : ""}${c.released_at ? " / " + c.released_at : ""}`;
+
+      rmeta.append(rname, rsub);
+
+      const ractions = document.createElement("div");
+      ractions.className = "ractions";
+
+      const lMain = document.createElement("button");
+      lMain.textContent = "Main";
+      lMain.onclick = () => addToBoard("main", c, 1);
+
+      const lSide = document.createElement("button");
+      lSide.textContent = "Side";
+      lSide.onclick = () => addToBoard("side", c, 1);
+
+      const lOpen = document.createElement("button");
+      lOpen.textContent = "詳細";
+      lOpen.onclick = () => window.open(c.scryfall_uri, "_blank", "noopener,noreferrer");
+
+      ractions.append(lMain, lSide, lOpen);
+
+      row.append(limg, rmeta, ractions);
+      list.appendChild(row);
     }
   }
 
-  /* ===== Tiles (tap + long press) ===== */
+  /* ===== Tiles (tap + long press + dblclick) ===== */
   function attachTileInteractions(tile, boardName, cardId) {
     const LONG_PRESS_MS = 500;
     let pressTimer = null;
@@ -673,12 +815,8 @@
     badge.className = "badge";
     badge.textContent = it.qty;
 
-    const footer = document.createElement("div");
-    footer.className = "tileFooter";
-    footer.textContent = it.name;
-
+    tile.append(img, badge);
     attachTileInteractions(tile, boardName, it.id);
-    tile.append(img, badge, footer);
     return tile;
   }
 
@@ -696,11 +834,22 @@
 
   /* ===== events ===== */
   $("btnSearch").onclick = () => searchCards($("q").value);
-  $("btnClear").onclick = () => { $("q").value = ""; state.results = []; renderResults(); setStatus("クリアしました"); };
+  $("btnClear").onclick = () => {
+    $("q").value = "";
+    state.results = [];
+    renderResults();
+    setStatus("クリアしました");
+    setSearchPage("form");
+  };
   $("q").addEventListener("keydown", (e) => { if (e.key === "Enter") searchCards($("q").value); });
+
   $("order").addEventListener("change", () => { if ($("q").value.trim()) searchCards($("q").value); });
-  $("preferJa").addEventListener("change", () => { if ($("q").value.trim()) searchCards($("q").value); });
-  $("collapseSame").addEventListener("change", () => { if ($("q").value.trim()) searchCards($("q").value); });
+  $("preferJa").addEventListener("change", () => { /* 検索結果ページ中なら再検索してもOKだが、ここは何もしない */ });
+  $("collapseSame").addEventListener("change", () => { /* 同上 */ });
+
+  $("btnBackToForm").onclick = () => setSearchPage("form");
+  $("viewModeGrid").onclick = () => setResultsMode("grid");
+  $("viewModeList").onclick = () => setResultsMode("list");
 
   $("btnExport").onclick = exportDeck;
   $("btnClearBoards").onclick = clearBoards;
@@ -729,7 +878,9 @@
   renderDeck();
   setStatus("待機中");
 
-  // 初期ビュー（ハッシュに従う）
+  setResultsMode(searchUI.mode);
+  setSearchPage(searchUI.page);
+
   syncViewFromHash();
 })();
 </script>
@@ -742,4 +893,3 @@ if ("serviceWorker" in navigator) {
 </script>
 </body>
 </html>
-
