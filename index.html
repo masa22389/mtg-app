@@ -91,6 +91,61 @@
     .card .sub{ font-size:12px; color:var(--muted); }
     .card .actions{ display:flex; gap:6px; flex-wrap:wrap; }
 
+    /* Search results list mode */
+    .list{
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+      padding:12px;
+    }
+    .row{
+      display:grid;
+      grid-template-columns: 56px 1fr;
+      gap:10px;
+      align-items:center;
+      border:1px solid var(--line);
+      border-radius:12px;
+      background:#0f1117;
+      padding:8px;
+    }
+    .row img{
+      width:56px;
+      height:78px;
+      object-fit:cover;
+      border-radius:10px;
+      background:#0b0c10;
+    }
+    .row .rmeta{ min-width:0; }
+    .row .rname{
+      font-size:14px;
+      font-weight:900;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+    }
+    .row .rsub{
+      font-size:12px;
+      color:var(--muted);
+      overflow:hidden;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+    }
+    .row .ractions{
+      grid-column: 1 / -1;
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+    }
+    @media (min-width: 520px){
+      .row{
+        grid-template-columns: 56px 1fr auto;
+      }
+      .row .ractions{
+        grid-column:auto;
+        justify-content:flex-end;
+      }
+    }
+
     /* Views */
     .view{ display:none; }
     .view.active{ display:block; }
@@ -106,6 +161,7 @@
       background:rgba(255,255,255,.03);
       padding:4px 8px;
       border-radius:999px;
+      white-space:nowrap;
     }
 
     .boards{ display:flex; gap:10px; }
@@ -183,7 +239,6 @@
       font-variant-numeric: tabular-nums;
       pointer-events:none;
     }
-    .tileFooter{ display:none; } /* アプリ風：名前は基本出さない */
 
     /* Mobile layout */
     @media (max-width: 980px){
@@ -315,11 +370,14 @@
 
 <header>
   <div class="topbar">
-    <div class="tabs" role="tablist" aria-label="画面切替">
-      <button id="tabSearch" class="tabbtn" role="tab" aria-selected="true">検索</button>
-      <button id="tabDeck" class="tabbtn" role="tab" aria-selected="false">デッキ</button>
+    <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+      <div class="tabs" role="tablist" aria-label="画面切替">
+        <button id="tabSearch" class="tabbtn" role="tab" aria-selected="true">検索</button>
+        <button id="tabDeck" class="tabbtn" role="tab" aria-selected="false">デッキ</button>
+      </div>
+      <div class="hint">デッキ：カードをタップ → 操作（+ / - / 移動）</div>
     </div>
-    <div class="hint">デッキ：カードをタップ → 操作（+ / - / 移動）</div>
+    <div class="pill" id="verBadge">ver 0.0.1</div>
   </div>
 
   <div id="searchToolbar" class="toolbar">
@@ -329,8 +387,13 @@
       <option value="released">並び: 発売日</option>
       <option value="set">並び: セット</option>
     </select>
+
+    <button id="btnViewGrid">グリッド</button>
+    <button id="btnViewList">リスト</button>
+
     <label><input id="preferJa" type="checkbox" checked> 日本語版を優先（あれば）</label>
     <label><input id="collapseSame" type="checkbox"> 同名カードは1種類だけ（代表=最新印刷）</label>
+
     <button id="btnSearch">検索</button>
     <button id="btnClear">クリア</button>
   </div>
@@ -340,7 +403,8 @@
   <!-- ===== Search ===== -->
   <section id="viewSearch" class="view active">
     <div class="panel">
-      <div id="results" class="grid"></div>
+      <div id="resultsGrid" class="grid"></div>
+      <div id="resultsList" class="list" style="display:none;"></div>
       <div id="status" class="status">待機中</div>
     </div>
   </section>
@@ -409,9 +473,7 @@
       <div id="cardModalTitle" class="modalTitle">カード操作</div>
       <button class="modalClose" id="closeCardModal">×</button>
     </div>
-    <div class="modalBody" id="cardModalBody">
-      <!-- filled by JS -->
-    </div>
+    <div class="modalBody" id="cardModalBody"></div>
   </div>
 </div>
 
@@ -459,7 +521,22 @@
 <script>
 (() => {
   const $ = (id) => document.getElementById(id);
-  const STORE_KEY = "mtg_deck_store_v2";
+
+  // ===== Version =====
+  const APP_VERSION = "0.0.1";
+
+  // ===== Search view mode (grid/list) =====
+  const SEARCH_VIEW_KEY = "mtg_search_view";
+  let searchView = localStorage.getItem(SEARCH_VIEW_KEY) || "grid";
+
+  // ===== Storage keys (backward compatible) =====
+  const STORE_KEYS = [
+    "mtg_deck_store_v2",  // current
+    "mtg_deck_store_v1",  // old candidates
+    "mtg_deck_store",
+    "mtg_deck_store_v0"
+  ];
+  const STORE_KEY = STORE_KEYS[0]; // always save into v2
 
   const state = {
     results: [],
@@ -499,18 +576,33 @@
     if (ds) ds.textContent = msg;
   }
 
+  /* ===== Search view toggle ===== */
+  function setSearchView(mode){
+    searchView = (mode === "list") ? "list" : "grid";
+    localStorage.setItem(SEARCH_VIEW_KEY, searchView);
+    const isGrid = searchView === "grid";
+    $("resultsGrid").style.display = isGrid ? "grid" : "none";
+    $("resultsList").style.display = isGrid ? "none" : "flex";
+  }
+
   /* ===== Storage ===== */
   function loadStore(){
-    try{
-      const raw = localStorage.getItem(STORE_KEY);
-      if (!raw) return { version:2, decks:{} };
-      const obj = JSON.parse(raw);
-      if (!obj || typeof obj !== "object") return { version:2, decks:{} };
-      if (!obj.decks) obj.decks = {};
-      return obj;
-    }catch{
-      return { version:2, decks:{} };
+    // Try keys in order; migrate to v2 if found in older key.
+    for (const key of STORE_KEYS){
+      try{
+        const raw = localStorage.getItem(key);
+        if (!raw) continue;
+        const obj = JSON.parse(raw);
+        if (obj && typeof obj === "object" && obj.decks && typeof obj.decks === "object"){
+          if (key !== STORE_KEY){
+            localStorage.setItem(STORE_KEY, JSON.stringify(obj));
+          }
+          if (!obj.version) obj.version = 2;
+          return obj;
+        }
+      }catch{}
     }
+    return { version:2, decks:{} };
   }
   function saveStore(store){ localStorage.setItem(STORE_KEY, JSON.stringify(store)); }
 
@@ -713,7 +805,6 @@
 
   function listEntries(obj){
     const arr = Object.values(obj);
-
     const mode = $("sortDeck")?.value || "name";
     arr.sort((a,b)=>{
       if (mode === "released"){
@@ -725,7 +816,6 @@
       }
       return (a.name||"").localeCompare(b.name||"");
     });
-
     return arr;
   }
 
@@ -766,9 +856,7 @@
     const b = boardObj(to);
     const it = a[cardId];
     if (!it) return;
-
-    // 0枚なら移動は意味ないので無視（表示は維持）
-    if ((it.qty||0) <= 0) return;
+    if ((it.qty||0) <= 0) return; // 0枚は移動しない
 
     if (b[cardId]) b[cardId].qty += it.qty;
     else b[cardId] = it;
@@ -804,10 +892,13 @@
 
   /* ===== Render ===== */
   function renderResults(){
-    const el = $("results");
-    el.innerHTML = "";
+    const grid = $("resultsGrid");
+    const list = $("resultsList");
+    grid.innerHTML = "";
+    list.innerHTML = "";
 
     for (const c of state.results){
+      // ---- grid card ----
       const wrap = document.createElement("div");
       wrap.className = "card";
 
@@ -845,9 +936,51 @@
 
       actions.append(btnMain, btnSide, btnOpen);
       meta.append(name, sub, actions);
-
       wrap.append(img, meta);
-      el.appendChild(wrap);
+      grid.appendChild(wrap);
+
+      // ---- list row ----
+      const row = document.createElement("div");
+      row.className = "row";
+
+      const limg = document.createElement("img");
+      limg.loading = "lazy";
+      limg.alt = c.name;
+      limg.src = c.image || "";
+      limg.onerror = () => { limg.style.display = "none"; };
+
+      const rmeta = document.createElement("div");
+      rmeta.className = "rmeta";
+
+      const rname = document.createElement("div");
+      rname.className = "rname";
+      rname.textContent = c.name;
+
+      const rsub = document.createElement("div");
+      rsub.className = "rsub";
+      rsub.textContent = `${c.set}${c.collector ? " #" + c.collector : ""}${c.lang ? " / " + c.lang : ""}${c.released_at ? " / " + c.released_at : ""}`;
+
+      rmeta.append(rname, rsub);
+
+      const ractions = document.createElement("div");
+      ractions.className = "ractions";
+
+      const lMain = document.createElement("button");
+      lMain.textContent = "Main";
+      lMain.onclick = () => addToBoard("main", c, 1);
+
+      const lSide = document.createElement("button");
+      lSide.textContent = "Side";
+      lSide.onclick = () => addToBoard("side", c, 1);
+
+      const lOpen = document.createElement("button");
+      lOpen.textContent = "詳細";
+      lOpen.onclick = () => window.open(c.scryfall_uri, "_blank", "noopener,noreferrer");
+
+      ractions.append(lMain, lSide, lOpen);
+
+      row.append(limg, rmeta, ractions);
+      list.appendChild(row);
     }
   }
 
@@ -868,7 +1001,6 @@
 
     tile.append(img, badge);
 
-    // タップで「操作モーダル」を開く（スクショに近い）
     tile.addEventListener("click", (e)=>{
       e.preventDefault();
       openCardModal(boardName, it.id);
@@ -893,7 +1025,6 @@
     $("mainCountTop").textContent = mc;
     $("sideCountTop").textContent = sc;
 
-    // collapsed
     $("mainBody").style.display = state.boardCollapsed.main ? "none" : "block";
     $("sideBody").style.display = state.boardCollapsed.side ? "none" : "block";
     $("toggleMain").textContent = state.boardCollapsed.main ? "▶" : "▼";
@@ -922,7 +1053,6 @@
   }
 
   function closeCardModal(){
-    // ここで0枚カードを掃除（閉じたら消える）
     cleanupZeros();
     state.openCard = null;
     hideOverlay("cardModalOverlay");
@@ -939,7 +1069,6 @@
     const obj = boardObj(board);
     const it = obj[id];
 
-    // もしすでに削除されてた場合でも、閉じないために仮表示
     const safe = it || { id, name:"(カード)", qty:0, set:"", collector:"", lang:"", released_at:"", scryfall_uri:"#", image:"" };
 
     $("cardModalTitle").textContent = `${board === "main" ? "Main" : "Side"}のカード操作`;
@@ -963,7 +1092,6 @@
       </div>
     `;
 
-    // wire buttons
     $("cmPlus").onclick  = () => changeQty(board, id, +1, true);
     $("cmMinus").onclick = () => changeQty(board, id, -1, true);
 
@@ -976,7 +1104,6 @@
       if (safe.scryfall_uri && safe.scryfall_uri !== "#") window.open(safe.scryfall_uri, "_blank", "noopener,noreferrer");
     };
 
-    // disable move if qty=0
     if ((safe.qty||0) <= 0) $("cmMove").disabled = true;
   }
 
@@ -1066,6 +1193,9 @@
   $("preferJa").addEventListener("change", ()=>{ if ($("q").value.trim()) searchCards($("q").value); });
   $("collapseSame").addEventListener("change", ()=>{ if ($("q").value.trim()) searchCards($("q").value); });
 
+  $("btnViewGrid").onclick = () => setSearchView("grid");
+  $("btnViewList").onclick = () => setSearchView("list");
+
   $("btnClearBoards").onclick = () => {
     if (!confirm("Main/Side を全消しします。よろしいですか？")) return;
     clearBoards();
@@ -1076,7 +1206,6 @@
   $("closeCardModal").onclick = closeCardModal;
   $("closeSettingsModal").onclick = closeSettingsModal;
 
-  // overlay click outside to close
   $("cardModalOverlay").addEventListener("click", (e)=>{
     if (e.target === $("cardModalOverlay")) closeCardModal();
   });
@@ -1084,7 +1213,6 @@
     if (e.target === $("settingsModalOverlay")) closeSettingsModal();
   });
 
-  // deck settings buttons
   $("btnSaveDeck").onclick = saveCurrentDeck;
   $("btnNewDeck").onclick = () => {
     if (!confirm("新規デッキを作成します（未保存の変更は失われます）。よろしいですか？")) return;
@@ -1108,15 +1236,20 @@
     setStatus("0枚カードを掃除しました");
   };
 
-  // sort deck list
   $("sortDeck").addEventListener("change", renderDeck);
 
   /* ===== init ===== */
+  $("verBadge").textContent = `ver ${APP_VERSION}`;
+
+  // Ensure old stores are migrated if any
+  loadStore();
   refreshDeckSelect();
+
   setCurrentDeckName("");
   renderResults();
   renderDeck();
   setStatus("待機中");
+  setSearchView(searchView);
   syncViewFromHash();
 
 })();
