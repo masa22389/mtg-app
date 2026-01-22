@@ -31,16 +31,8 @@
       backdrop-filter: blur(8px);
       z-index:10;
     }
-
-    .topbar{ display:flex; align-items:center; justify-content:flex-start; gap:10px; flex-wrap:wrap; }
-    .tabs{
-      display:flex;
-      gap:8px;
-      align-items:center;
-      padding-bottom:8px;
-      border-bottom:3px double rgba(255,255,255,.12); /* ← 二重線 */
-      width:100%;
-    }
+    .topbar{ display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; }
+    .tabs{ display:flex; gap:8px; }
     .tabbtn{
       padding:10px 12px;
       border-radius:12px;
@@ -52,29 +44,9 @@
     }
     .tabbtn[aria-selected="true"]{ background:#1b2130; outline:2px solid rgba(255,255,255,.10); }
 
-    .pill{
-      font-size:11px;
-      color:var(--muted);
-      border:1px solid var(--line);
-      background:rgba(255,255,255,.03);
-      padding:4px 8px;
-      border-radius:999px;
-      white-space:nowrap;
-    }
+    .hint{ font-size:12px; color:var(--muted); line-height:1.4; }
 
-    /* ===== Search toolbar layout ===== */
-    .toolbar{
-      display:flex;
-      flex-direction:column;
-      gap:10px;
-      margin-top:10px;
-    }
-    .rowBar{
-      display:flex;
-      gap:10px;
-      align-items:center;
-      flex-wrap:wrap;
-    }
+    .toolbar{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:10px; }
     input[type="text"], input[type="search"]{
       padding:10px 12px;
       border-radius:10px;
@@ -82,7 +54,7 @@
       background:#0f1117;
       color:var(--text);
     }
-    input#q{ flex:1; min-width: 180px; }
+    input#q{ flex:1; min-width: 240px; }
     select, button{
       padding:10px 12px;
       border-radius:10px;
@@ -93,13 +65,6 @@
     }
     button:hover{ background:#1b2130; }
     label{ display:flex; align-items:center; gap:8px; font-size:12px; color:var(--muted); user-select:none; }
-    .rowChecks{ gap:14px; }
-
-    .btnPrimary{
-      font-weight:900;
-      background:#1b2130;
-    }
-    .btnPrimary:hover{ background:#232b3d; }
 
     .content{ padding:12px; }
     .panel{ background:var(--panel); border:1px solid var(--line); border-radius:12px; overflow:hidden; }
@@ -189,6 +154,15 @@
     .deckWrap{ padding:12px; display:flex; flex-direction:column; gap:12px; }
     .deckTop{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; justify-content:space-between; }
     .deckTopLeft{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    .pill{
+      font-size:11px;
+      color:var(--muted);
+      border:1px solid var(--line);
+      background:rgba(255,255,255,.03);
+      padding:4px 8px;
+      border-radius:999px;
+      white-space:nowrap;
+    }
 
     .boards{ display:flex; gap:10px; }
     .board{
@@ -222,14 +196,17 @@
     .boardCount{ font-size:12px; color:var(--muted); font-variant-numeric: tabular-nums; }
 
     .tileWrap{ padding:10px; }
+
+    /* ★ ここが重要：スマホでも横6枚固定 */
     .tileGrid{
       display:grid;
-      grid-template-columns: repeat(auto-fill, minmax(78px, 1fr));
+      grid-template-columns: repeat(6, minmax(0, 1fr));
       gap:6px;
       max-height: min(58dvh, 58vh);
       overflow:auto;
       padding-right:4px;
     }
+
     .tile{
       position:relative;
       border:1px solid var(--line);
@@ -266,10 +243,18 @@
       pointer-events:none;
     }
 
+    /* Desktop: auto-fill（広い画面では自然に増える） */
+    @media (min-width: 981px){
+      .tileGrid{
+        grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+        max-height: min(58dvh, 58vh);
+      }
+    }
+
     /* Mobile layout */
     @media (max-width: 980px){
       .boards{ flex-direction: column; }
-      .tileGrid{ max-height: min(46dvh, 46vh); grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); }
+      .tileGrid{ max-height: min(46dvh, 46vh); }
       input#q{ min-width: 180px; }
     }
 
@@ -366,13 +351,6 @@
       gap:10px;
     }
     .btnWide{ grid-column: 1 / -1; }
-    .note{
-      margin-top:10px;
-      font-size:12px;
-      color:var(--muted);
-      text-align:center;
-      line-height:1.4;
-    }
 
     @media (max-width: 980px){
       .cardModalRow{ grid-template-columns: 96px 1fr; }
@@ -390,50 +368,44 @@
       width:100%;
     }
     .hline{ height:1px; background:rgba(255,255,255,.08); margin:14px 0; }
+    .note{
+      margin-top:10px;
+      font-size:12px;
+      color:var(--muted);
+      text-align:center;
+      line-height:1.4;
+    }
   </style>
 </head>
 <body>
 
 <header>
   <div class="topbar">
-    <div class="tabs" role="tablist" aria-label="画面切替">
-      <button id="tabSearch" class="tabbtn" role="tab" aria-selected="true">検索</button>
-
-      <div style="display:flex; align-items:center; gap:8px;">
+    <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+      <div class="tabs" role="tablist" aria-label="画面切替">
+        <button id="tabSearch" class="tabbtn" role="tab" aria-selected="true">検索</button>
         <button id="tabDeck" class="tabbtn" role="tab" aria-selected="false">デッキ</button>
-        <div class="pill" id="verBadge">ver 0.0.2</div>
       </div>
     </div>
+    <div class="pill" id="verBadge">ver 0.0.2</div>
   </div>
 
   <div id="searchToolbar" class="toolbar">
-    <!-- Row 1: 検索ボックス + 検索ボタン -->
-    <div class="rowBar">
-      <input id="q" type="text" placeholder="検索" />
-      <button id="btnSearch" class="btnPrimary">検索</button>
-    </div>
+    <input id="q" type="text" placeholder='検索' />
+    <select id="order">
+      <option value="name">並び: 名前</option>
+      <option value="released">並び: 発売日</option>
+      <option value="set">並び: セット</option>
+    </select>
 
-    <!-- Row 2: ソート + クリア + 表示（ドロップダウン） -->
-    <div class="rowBar">
-      <select id="order">
-        <option value="name">並び: 名前</option>
-        <option value="released">並び: 発売日</option>
-        <option value="set">並び: セット</option>
-      </select>
+    <button id="btnViewGrid">グリッド</button>
+    <button id="btnViewList">リスト</button>
 
-      <button id="btnClear">クリア</button>
+    <label><input id="preferJa" type="checkbox" checked> 日本語版を優先（あれば）</label>
+    <label><input id="collapseSame" type="checkbox"> 同名カードは1種類だけ（代表=最新印刷）</label>
 
-      <select id="viewMode">
-        <option value="grid">表示: グリッド</option>
-        <option value="list">表示: リスト</option>
-      </select>
-    </div>
-
-    <!-- Row 3: チェック -->
-    <div class="rowBar rowChecks">
-      <label><input id="preferJa" type="checkbox" checked> 日本語版を優先（あれば）</label>
-      <label><input id="collapseSame" type="checkbox"> 同名カードは1種類だけ（代表=最新印刷）</label>
-    </div>
+    <button id="btnSearch">検索</button>
+    <button id="btnClear">クリア</button>
   </div>
 </header>
 
@@ -458,10 +430,11 @@
             <span class="pill">Side: <b id="sideCountTop">0</b></span>
           </div>
           <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <!-- ★ デッキの並び替え：検索とは別 -->
             <select id="sortDeck">
               <option value="name">並び（名前）</option>
-              <option value="released">並び（発売日）</option>
-              <option value="set">並び（セット）</option>
+              <option value="cmc">並び（マナコスト）</option>
+              <option value="type">並び（種類）</option>
             </select>
             <button id="btnOpenSettings">⚙ 設定</button>
           </div>
@@ -570,12 +543,12 @@
   // ===== Storage keys (backward compatible) =====
   const STORE_KEYS = [
     "mtg_deck_store_tabs_v2", // ← 旧版（あなたの過去デッキがここ）
-    "mtg_deck_store_v2",
-    "mtg_deck_store_v1",
+    "mtg_deck_store_v2",  // current
+    "mtg_deck_store_v1",  // old candidates
     "mtg_deck_store",
     "mtg_deck_store_v0"
   ];
-  const STORE_KEY = STORE_KEYS[0];
+  const STORE_KEY = STORE_KEYS[0]; // always save into v2
 
   const state = {
     results: [],
@@ -622,9 +595,6 @@
     const isGrid = searchView === "grid";
     $("resultsGrid").style.display = isGrid ? "grid" : "none";
     $("resultsList").style.display = isGrid ? "none" : "flex";
-    // UI反映
-    const vm = $("viewMode");
-    if (vm) vm.value = searchView;
   }
 
   /* ===== Storage ===== */
@@ -687,6 +657,11 @@
     }
     return "";
   }
+  function getTypeLine(card){
+    if (card.type_line) return card.type_line;
+    if (Array.isArray(card.card_faces) && card.card_faces[0]?.type_line) return card.card_faces[0].type_line;
+    return "";
+  }
   function normalizeCard(card){
     return {
       id: card.id,
@@ -697,7 +672,11 @@
       lang: card.lang || "",
       released_at: card.released_at || "",
       scryfall_uri: card.scryfall_uri,
-      image: getCardImage(card)
+      image: getCardImage(card),
+
+      // ★ デッキ並び替え用（追加）
+      cmc: (typeof card.cmc === "number") ? card.cmc : 0,
+      type_line: getTypeLine(card)
     };
   }
   async function fetchSearch(q){
@@ -811,7 +790,6 @@
       return;
     }
 
-    // Normal: prefer ja + fallback any
     const merged = new Map();
     const pushAll = (arr)=>{ for (const c of arr) merged.set(c.id, c); };
 
@@ -844,16 +822,22 @@
     return Object.values(obj).reduce((sum,x)=>sum+(x.qty||0),0);
   }
 
+  // ★ デッキ並び替え：名前 / cmc / 種類
   function listEntries(obj){
     const arr = Object.values(obj);
     const mode = $("sortDeck")?.value || "name";
     arr.sort((a,b)=>{
-      if (mode === "released"){
-        const ad = dateKey(a.released_at), bd = dateKey(b.released_at);
-        if (ad !== bd) return bd.localeCompare(ad);
-      } else if (mode === "set"){
-        const as = (a.set||""), bs = (b.set||"");
-        if (as !== bs) return as.localeCompare(bs);
+      if (mode === "cmc"){
+        const ac = (typeof a.cmc === "number") ? a.cmc : Number(a.cmc || 0);
+        const bc = (typeof b.cmc === "number") ? b.cmc : Number(b.cmc || 0);
+        if (ac !== bc) return ac - bc;
+        return (a.name||"").localeCompare(b.name||"");
+      }
+      if (mode === "type"){
+        const at = (a.type_line || "").toLowerCase();
+        const bt = (b.type_line || "").toLowerCase();
+        if (at !== bt) return at.localeCompare(bt);
+        return (a.name||"").localeCompare(b.name||"");
       }
       return (a.name||"").localeCompare(b.name||"");
     });
@@ -885,7 +869,6 @@
     state.deck.updatedAt = new Date().toISOString();
     renderDeck();
 
-    // モーダル更新（閉じない）
     if (state.openCard && state.openCard.board === board && state.openCard.id === cardId){
       renderCardModal();
     }
@@ -897,7 +880,7 @@
     const b = boardObj(to);
     const it = a[cardId];
     if (!it) return;
-    if ((it.qty||0) <= 0) return; // 0枚は移動しない
+    if ((it.qty||0) <= 0) return;
 
     if (b[cardId]) b[cardId].qty += it.qty;
     else b[cardId] = it;
@@ -906,7 +889,6 @@
     state.deck.updatedAt = new Date().toISOString();
     renderDeck();
 
-    // 開いてるモーダルの対象を移動先に更新
     if (state.openCard && state.openCard.id === cardId){
       state.openCard.board = to;
       renderCardModal();
@@ -939,7 +921,6 @@
     list.innerHTML = "";
 
     for (const c of state.results){
-      // ---- grid card ----
       const wrap = document.createElement("div");
       wrap.className = "card";
 
@@ -980,7 +961,6 @@
       wrap.append(img, meta);
       grid.appendChild(wrap);
 
-      // ---- list row ----
       const row = document.createElement("div");
       row.className = "row";
 
@@ -1127,8 +1107,6 @@
             <button id="cmMove" class="btnWide">${board === "main" ? "Sideへ移動" : "Mainへ移動"}</button>
             <button id="cmOpen" class="btnWide">Scryfall</button>
           </div>
-
-          <div class="note">※0枚になってもこの画面は閉じません（閉じるときに0枚は自動削除）</div>
         </div>
       </div>
     `;
@@ -1234,8 +1212,8 @@
   $("preferJa").addEventListener("change", ()=>{ if ($("q").value.trim()) searchCards($("q").value); });
   $("collapseSame").addEventListener("change", ()=>{ if ($("q").value.trim()) searchCards($("q").value); });
 
-  // 表示モード（グリッド/リスト）はドロップダウンで切替
-  $("viewMode").addEventListener("change", ()=> setSearchView($("viewMode").value));
+  $("btnViewGrid").onclick = () => setSearchView("grid");
+  $("btnViewList").onclick = () => setSearchView("list");
 
   $("btnClearBoards").onclick = () => {
     if (!confirm("Main/Side を全消しします。よろしいですか？")) return;
@@ -1282,7 +1260,6 @@
   /* ===== init ===== */
   $("verBadge").textContent = `ver ${APP_VERSION}`;
 
-  // Ensure old stores are migrated if any
   loadStore();
   refreshDeckSelect();
 
@@ -1290,7 +1267,7 @@
   renderResults();
   renderDeck();
   setStatus("待機中");
-  setSearchView(searchView);       // これで viewMode も同期される
+  setSearchView(searchView);
   syncViewFromHash();
 
 })();
