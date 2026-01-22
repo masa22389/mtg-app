@@ -123,8 +123,6 @@
       user-select:none;
       -webkit-tap-highlight-color: transparent;
       touch-action: manipulation;
-
-      /* ★iOS長押しのメニュー抑止（-2対策の補助） */
       -webkit-touch-callout: none;
     }
     .tile img { width:100%; aspect-ratio:0.714; object-fit:cover; display:block; background:#07080c; pointer-events:none; }
@@ -145,13 +143,12 @@
     }
 
     .tileHelp { font-size:11px; color:var(--muted); margin-top:8px; line-height:1.35; }
-    textarea { width:100%; height:160px; border-radius:10px; border:1px solid var(--line); background:#0f1117; color:var(--text); padding:10px; resize:vertical; }
 
     /* Views */
     .view { display:none; }
     .view.active { display:block; }
 
-    /* Modal (Deck menu) */
+    /* Modal */
     .modal {
       position: fixed;
       inset: 0;
@@ -169,12 +166,37 @@
       padding: 12px;
     }
 
+    /* Card Action Modal */
+    .cardActionWrap{
+      display:flex; gap:12px; align-items:flex-start; flex-wrap:wrap;
+      margin-top:10px;
+    }
+    .previewImg{
+      width: 140px;
+      border-radius: 12px;
+      border:1px solid var(--line);
+      overflow:hidden;
+      background:#0b0c10;
+      flex: 0 0 auto;
+    }
+    .previewImg img{ width:100%; display:block; }
+    .actionCol{
+      flex: 1 1 220px;
+      min-width: 220px;
+      display:flex; flex-direction:column; gap:10px;
+    }
+    .bigName{ font-weight:800; font-size:15px; line-height:1.25; }
+    .smallMeta{ color:var(--muted); font-size:12px; }
+    .btnRow{ display:flex; gap:8px; flex-wrap:wrap; }
+    .btnRow button{ flex: 1 1 110px; }
+
     @media (max-width: 980px) {
       .boards { flex-direction: column; }
       .tileGrid { max-height: 46vh; grid-template-columns: repeat(auto-fill, minmax(46px, 1fr)); gap:5px; }
       .row { grid-template-columns: 52px 1fr; }
       .row .ractions { grid-column: 1 / -1; justify-content:flex-start; }
       .row img { width:52px; height:72px; }
+      .previewImg{ width: 120px; }
     }
   </style>
 </head>
@@ -187,7 +209,7 @@
       <button id="tabDeck" class="tabbtn" role="tab" aria-selected="false">デッキ</button>
     </div>
     <div class="tabhint">
-      検索→追加→デッキで枚数調整（タップ:+1 / 長押し:-1 / ダブルタップ:Main⇔Side移動）
+      デッキ：カードをタップ→操作（+ / - / 移動）
     </div>
   </div>
 </header>
@@ -279,7 +301,7 @@
             </div>
             <div id="mainWrap" class="tileWrap">
               <div id="mainTiles" class="tileGrid"></div>
-              <div class="tileHelp">操作：タップ/クリック +1 ／ 長押し(0.5秒) or 右クリック -1 ／ ダブルタップで Sideへ移動</div>
+              <div class="tileHelp">カードをタップ → 操作（+ / - / Sideへ）</div>
             </div>
           </div>
 
@@ -293,7 +315,7 @@
             </div>
             <div id="sideWrap" class="tileWrap">
               <div id="sideTiles" class="tileGrid"></div>
-              <div class="tileHelp">操作：タップ/クリック +1 ／ 長押し(0.5秒) or 右クリック -1 ／ ダブルタップで Mainへ移動</div>
+              <div class="tileHelp">カードをタップ → 操作（+ / - / Mainへ）</div>
             </div>
           </div>
         </div>
@@ -301,8 +323,6 @@
         <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
           <button id="btnClearBoards" style="flex:1;">Main/Side 全消し</button>
         </div>
-
-        <!-- ★エクスポート欄は削除（設定内へ移動） -->
 
         <!-- ===== Deck Menu Modal ===== -->
         <div id="deckModal" class="modal">
@@ -327,21 +347,49 @@
                 <button id="btnDeleteDeck">削除</button>
               </div>
 
-              <!-- ★エクスポート：ボタン→モーダル内で表示 -->
-              <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:4px; align-items:center;">
-                <button id="btnExport">エクスポート</button>
-                <span class="pill">出力は下に表示</span>
-              </div>
-
-              <textarea id="exportBox" placeholder="エクスポート結果がここに出ます（コピー用）"></textarea>
-
               <div class="status" style="margin-top:6px;">
-                ※エクスポートは Main/Side を含むテキストを出力します
+                ※エクスポート機能はいったん削除しました（必要なら後で復活できます）
               </div>
             </div>
           </div>
         </div>
         <!-- ===== /Deck Menu Modal ===== -->
+
+        <!-- ===== Card Action Modal ===== -->
+        <div id="cardModal" class="modal">
+          <div class="modalInner">
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
+              <b id="cardModalTitle">カード操作</b>
+              <button id="btnCloseCardModal">✕</button>
+            </div>
+
+            <div class="cardActionWrap">
+              <div class="previewImg">
+                <img id="cardModalImg" alt="">
+              </div>
+
+              <div class="actionCol">
+                <div class="bigName" id="cardModalName">—</div>
+                <div class="smallMeta" id="cardModalMeta">—</div>
+
+                <div class="btnRow">
+                  <button id="btnCardPlus">＋1</button>
+                  <button id="btnCardMinus">－1</button>
+                </div>
+
+                <div class="btnRow">
+                  <button id="btnCardMove">移動</button>
+                  <button id="btnCardOpen">Scryfall</button>
+                </div>
+
+                <div class="status" style="border-top:1px solid var(--line);">
+                  ここで操作すると、誤爆しにくいです。
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- ===== /Card Action Modal ===== -->
 
       </div>
     </div>
@@ -362,6 +410,9 @@
     currentDeckName: "",
     deck: newEmptyDeck(""),
     deckUI: loadDeckUI(),
+
+    // Card action modal state
+    cardModal: { board: null, cardId: null },
   };
 
   /* ===== View switching (Search / Deck) ===== */
@@ -491,6 +542,32 @@
   /* ===== Modal (Deck Menu) ===== */
   function openDeckMenu() { $("deckModal").style.display = "grid"; }
   function closeDeckMenu() { $("deckModal").style.display = "none"; }
+
+  /* ===== Modal (Card Action) ===== */
+  function openCardModal(board, cardId) {
+    state.cardModal.board = board;
+    state.cardModal.cardId = cardId;
+
+    const obj = boardObj(board);
+    const it = obj[cardId];
+    if (!it) return;
+
+    $("cardModalTitle").textContent = (board === "main") ? "Mainのカード操作" : "Sideのカード操作";
+    $("cardModalName").textContent = `${it.qty}x ${it.name}`;
+    $("cardModalMeta").textContent = `${it.set}${it.collector ? " #" + it.collector : ""}${it.lang ? " / " + it.lang : ""}${it.released_at ? " / " + it.released_at : ""}`;
+
+    $("cardModalImg").src = it.image || "";
+    $("cardModalImg").alt = it.name;
+
+    $("btnCardMove").textContent = (board === "main") ? "Sideへ移動" : "Mainへ移動";
+
+    $("cardModal").style.display = "grid";
+  }
+  function closeCardModal() {
+    $("cardModal").style.display = "none";
+    state.cardModal.board = null;
+    state.cardModal.cardId = null;
+  }
 
   /* ===== Scryfall ===== */
   function looksJapanese(s) { return /[\u3040-\u30FF\u4E00-\u9FFF]/.test(s); }
@@ -698,6 +775,12 @@
     if (it.qty <= 0) delete obj[cardId];
     state.deck.updatedAt = new Date().toISOString();
     renderDeck();
+
+    // モーダル表示中なら表示更新
+    if ($("cardModal").style.display === "grid" && state.cardModal.cardId === cardId && state.cardModal.board === board) {
+      $("cardModalName").textContent = `${(obj[cardId]?.qty ?? 0)}x ${it.name}`;
+      if (!obj[cardId]) closeCardModal(); // 0になったら閉じる
+    }
   }
 
   function moveCard(from, to, cardId) {
@@ -711,6 +794,9 @@
     delete a[cardId];
     state.deck.updatedAt = new Date().toISOString();
     renderDeck();
+
+    // モーダル表示更新
+    closeCardModal();
   }
 
   function countBoard(obj) { return Object.values(obj).reduce((sum, x) => sum + (x.qty || 0), 0); }
@@ -751,25 +837,13 @@
     return arr;
   }
 
-  function exportDeck() {
-    const mode = $("deckSort").value;
-    const lines = [];
-    lines.push("Main");
-    for (const it of listEntries(state.deck.main, mode)) lines.push(`${it.qty} ${it.name}`);
-    lines.push("");
-    lines.push("Side");
-    for (const it of listEntries(state.deck.side, mode)) lines.push(`${it.qty} ${it.name}`);
-    $("exportBox").value = lines.join("\n");
-    setStatus("エクスポートしました（設定内の出力欄をコピーしてください）");
-  }
-
   function clearBoards() {
     state.deck.main = {};
     state.deck.side = {};
     state.deck.updatedAt = new Date().toISOString();
     setCurrentDeckName("");
     renderDeck();
-    $("exportBox").value = "";
+    setStatus("Main/Side を消去しました");
   }
 
   /* ===== Save/Load ===== */
@@ -820,7 +894,6 @@
     setCurrentDeckName("");
     $("deckName").value = "";
     renderDeck();
-    $("exportBox").value = "";
     setStatus("新規デッキを作成しました");
     closeDeckMenu();
   }
@@ -921,87 +994,11 @@
     }
   }
 
-  /* ===== Tiles (tap + long press + dblclick) ===== */
-  function attachTileInteractions(tile, boardName, cardId) {
-    const LONG_PRESS_MS = 500;
-    let pressTimer = null;
-    let longPressed = false;
-
-    // ★長押し直後にcontextmenuが来る端末がある → その時刻を覚えて無視
-    let lastLongPressAt = 0;
-
-    let lastTapMs = 0;
-    let pendingSingle = null;
-
-    const clearPress = () => {
-      if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
-    };
-
-    const cancelSingle = () => {
-      if (pendingSingle) { clearTimeout(pendingSingle); pendingSingle = null; }
-    };
-
-    tile.addEventListener("pointerdown", () => {
-      longPressed = false;
-      clearPress();
-      pressTimer = setTimeout(() => {
-        longPressed = true;
-        lastLongPressAt = Date.now();
-        cancelSingle();
-        changeQty(boardName, cardId, -1); // ★ここは1回だけ
-      }, LONG_PRESS_MS);
-    });
-
-    tile.addEventListener("pointerup", () => clearPress());
-    tile.addEventListener("pointercancel", () => clearPress());
-    tile.addEventListener("pointerleave", () => clearPress());
-
-    tile.addEventListener("click", (e) => {
-      e.preventDefault();
-      if (longPressed) { longPressed = false; return; }
-
-      const now = Date.now();
-      const isDouble = (now - lastTapMs) < 320;
-      lastTapMs = now;
-
-      if (isDouble) {
-        cancelSingle();
-        const to = boardName === "main" ? "side" : "main";
-        moveCard(boardName, to, cardId);
-        return;
-      }
-
-      cancelSingle();
-      pendingSingle = setTimeout(() => {
-        pendingSingle = null;
-        changeQty(boardName, cardId, +1);
-      }, 260);
-    });
-
-    tile.addEventListener("contextmenu", (e) => {
-      e.preventDefault();
-      clearPress();
-      cancelSingle();
-
-      // ★長押し減算(-1)の直後に来たcontextmenuは無視（-2防止）
-      if (Date.now() - lastLongPressAt < 800) return;
-
-      changeQty(boardName, cardId, -1);
-    });
-
-    tile.addEventListener("dblclick", (e) => {
-      e.preventDefault();
-      clearPress();
-      cancelSingle();
-      const to = boardName === "main" ? "side" : "main";
-      moveCard(boardName, to, cardId);
-    });
-  }
-
+  /* ===== Tiles: tap -> modal ===== */
   function makeTile(boardName, it) {
     const tile = document.createElement("div");
     tile.className = "tile";
-    tile.title = `${it.qty}x ${it.name}\nタップ:+1 / 長押し or 右クリック:-1 / ダブルタップ:移動`;
+    tile.title = `${it.qty}x ${it.name}\nタップして操作`;
 
     const img = document.createElement("img");
     img.alt = it.name;
@@ -1014,7 +1011,15 @@
     badge.textContent = it.qty;
 
     tile.append(img, badge);
-    attachTileInteractions(tile, boardName, it.id);
+
+    tile.addEventListener("click", (e) => {
+      e.preventDefault();
+      openCardModal(boardName, it.id);
+    });
+
+    // 長押し系の右クリックメニューを全抑止（誤爆防止）
+    tile.addEventListener("contextmenu", (e) => e.preventDefault());
+
     return tile;
   }
 
@@ -1058,6 +1063,39 @@
     if (e.target && e.target.id === "deckModal") closeDeckMenu();
   });
 
+  // Card Modal events
+  $("btnCloseCardModal").onclick = closeCardModal;
+  $("cardModal").addEventListener("click", (e) => {
+    if (e.target && e.target.id === "cardModal") closeCardModal();
+  });
+
+  $("btnCardPlus").onclick = () => {
+    const { board, cardId } = state.cardModal;
+    if (!board || !cardId) return;
+    changeQty(board, cardId, +1);
+    openCardModal(board, cardId); // 表示更新
+  };
+  $("btnCardMinus").onclick = () => {
+    const { board, cardId } = state.cardModal;
+    if (!board || !cardId) return;
+    changeQty(board, cardId, -1);
+    // 0なら changeQty 内で閉じるのでOK
+    if ($("cardModal").style.display === "grid") openCardModal(board, cardId);
+  };
+  $("btnCardMove").onclick = () => {
+    const { board, cardId } = state.cardModal;
+    if (!board || !cardId) return;
+    const to = (board === "main") ? "side" : "main";
+    moveCard(board, to, cardId);
+  };
+  $("btnCardOpen").onclick = () => {
+    const { board, cardId } = state.cardModal;
+    if (!board || !cardId) return;
+    const it = boardObj(board)[cardId];
+    if (!it) return;
+    window.open(it.scryfall_uri, "_blank", "noopener,noreferrer");
+  };
+
   $("btnSaveDeck").onclick = saveCurrentDeck;
   $("btnLoadDeck").onclick = () => {
     const name = $("deckSelect").value;
@@ -1074,7 +1112,6 @@
     if (!confirm("新規デッキを作成します（現在の未保存の変更は失われます）。よろしいですか？")) return;
     newDeck();
   };
-  $("btnExport").onclick = () => exportDeck();
 
   $("mainHead").addEventListener("click", () => {
     state.deckUI.mainOpen = !state.deckUI.mainOpen;
