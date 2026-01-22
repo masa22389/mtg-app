@@ -22,54 +22,56 @@
       --chip:#151a26;
     }
     *{ box-sizing:border-box; }
-    body{ margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, "Noto Sans JP", sans-serif; background:var(--bg); color:var(--text); }
+    body{
+      margin:0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, "Noto Sans JP", sans-serif;
+      background:var(--bg);
+      color:var(--text);
+    }
+
     header{
-      padding:14px 16px;
+      padding:14px 16px 10px;
       border-bottom:1px solid var(--line);
-      position:sticky; top:0;
+      position:sticky;
+      top:0;
       background:rgba(11,12,16,.92);
       backdrop-filter: blur(8px);
       z-index:10;
     }
 
-    .topbar{ display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; }
-
-    /* ===== Tabs with double line ===== */
+    /* ===== Top tabs ===== */
+    .topbar{ display:flex; align-items:flex-end; justify-content:space-between; gap:12px; flex-wrap:wrap; }
     .tabsWrap{
       display:flex;
       align-items:center;
       gap:10px;
-      flex-wrap:wrap;
+      padding-bottom:8px;
       position:relative;
-      padding-bottom:10px;
       width:100%;
+      max-width: 520px;
     }
-    .tabs{
-      display:flex;
-      gap:8px;
-      position:relative;
-      padding-bottom:6px;
-    }
-    .tabs::after{
+    .tabsWrap::after{
       content:"";
       position:absolute;
-      left:0; right:0;
-      bottom:0;
-      border-bottom:3px double var(--line);
-      opacity:.9;
+      left:0; right:0; bottom:0;
+      border-bottom:3px double rgba(255,255,255,.18);
+      pointer-events:none;
     }
+    .tabs{ display:flex; gap:8px; }
     .tabbtn{
-      padding:10px 12px;
-      border-radius:12px;
+      padding:10px 14px;
+      border-radius:14px;
       border:1px solid var(--line);
       background:#121623;
       color:var(--text);
       cursor:pointer;
-      font-weight:800;
-      min-width:72px;
+      font-weight:900;
+      min-width: 88px;
     }
-    .tabbtn[aria-selected="true"]{ background:#1b2130; outline:2px solid rgba(255,255,255,.10); }
-
+    .tabbtn[aria-selected="true"]{
+      background:#1b2130;
+      outline:2px solid rgba(255,255,255,.10);
+    }
     .pill{
       font-size:11px;
       color:var(--muted);
@@ -78,52 +80,83 @@
       padding:6px 10px;
       border-radius:999px;
       white-space:nowrap;
+      font-variant-numeric: tabular-nums;
     }
 
-    /* ===== Search toolbar layout (3 rows) ===== */
-    .toolbar{
+    /* ===== Search toolbar layout (requested) ===== */
+    .searchToolbar{
+      margin-top:12px;
       display:flex;
       flex-direction:column;
       gap:10px;
-      margin-top:10px;
     }
-    .toolbarRow{
+    .searchRow1{
+      display:grid;
+      grid-template-columns: 1fr auto;
+      gap:10px;
+      align-items:center;
+    }
+    .searchRow2{
       display:flex;
       gap:10px;
       align-items:center;
       flex-wrap:wrap;
     }
-    .toolbarRow.nowrap{
-      flex-wrap:nowrap;
+    .searchRow3{
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+      padding-top:2px;
     }
 
     input[type="text"], input[type="search"]{
-      padding:10px 12px;
-      border-radius:10px;
+      padding:12px 12px;
+      border-radius:12px;
       border:1px solid var(--line);
       background:#0f1117;
       color:var(--text);
-    }
-    input#q{
-      flex:1;
-      min-width: 160px;
+      width:100%;
+      min-width: 0;
     }
     select, button{
-      padding:10px 12px;
-      border-radius:10px;
+      padding:12px 12px;
+      border-radius:12px;
       border:1px solid var(--line);
       background:#171b25;
       color:var(--text);
       cursor:pointer;
+      white-space:nowrap;
     }
     button:hover{ background:#1b2130; }
-    label{ display:flex; align-items:center; gap:8px; font-size:12px; color:var(--muted); user-select:none; }
+
+    /* search dropdowns shouldn't be super wide */
+    select{
+      max-width: 220px;
+    }
+    #order{ width: 190px; }
+    #viewMode{ width: 160px; }
+
+    label{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      font-size:13px;
+      color:var(--muted);
+      user-select:none;
+    }
+    label input{ width:18px; height:18px; }
 
     .content{ padding:12px; }
-    .panel{ background:var(--panel); border:1px solid var(--line); border-radius:12px; overflow:hidden; }
-    .status{ padding:10px 12px; border-top:1px solid var(--line); color:var(--muted); font-size:12px; white-space:pre-wrap; }
+    .panel{ background:var(--panel); border:1px solid var(--line); border-radius:14px; overflow:hidden; }
+    .status{
+      padding:10px 12px;
+      border-top:1px solid var(--line);
+      color:var(--muted);
+      font-size:12px;
+      white-space:pre-wrap;
+    }
 
-    /* Search results grid */
+    /* ===== Search results grid ===== */
     .grid{
       display:grid;
       grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
@@ -132,19 +165,19 @@
     }
     .card{
       border:1px solid var(--line);
-      border-radius:12px;
+      border-radius:14px;
       overflow:hidden;
       background:#0f1117;
       display:flex;
       flex-direction:column;
     }
     .card img{ width:100%; aspect-ratio: 0.714; object-fit:cover; background:#0b0c10; }
-    .card .meta{ padding:10px; display:flex; flex-direction:column; gap:6px; }
-    .card .name{ font-size:13px; line-height:1.25; font-weight:800; }
+    .card .meta{ padding:10px; display:flex; flex-direction:column; gap:8px; }
+    .card .name{ font-size:13px; line-height:1.25; font-weight:900; }
     .card .sub{ font-size:12px; color:var(--muted); }
     .card .actions{ display:flex; gap:6px; flex-wrap:wrap; }
 
-    /* Search results list mode */
+    /* ===== Search results list (buttons under name, more dense) ===== */
     .list{
       display:flex;
       flex-direction:column;
@@ -155,22 +188,23 @@
       display:grid;
       grid-template-columns: 56px 1fr;
       gap:10px;
-      align-items:center;
+      align-items:start;
       border:1px solid var(--line);
-      border-radius:12px;
+      border-radius:14px;
       background:#0f1117;
-      padding:8px;
+      padding:10px;
     }
     .row img{
       width:56px;
       height:78px;
       object-fit:cover;
-      border-radius:10px;
+      border-radius:12px;
       background:#0b0c10;
+      margin-top:2px;
     }
-    .row .rmeta{ min-width:0; }
+    .row .rmeta{ min-width:0; display:flex; flex-direction:column; gap:6px; }
     .row .rname{
-      font-size:14px;
+      font-size:15px;
       font-weight:900;
       overflow:hidden;
       text-overflow:ellipsis;
@@ -184,26 +218,21 @@
       white-space:nowrap;
     }
     .row .ractions{
-      grid-column: 1 / -1;
       display:flex;
       gap:8px;
       flex-wrap:wrap;
+      margin-top:2px;
     }
-    @media (min-width: 520px){
-      .row{
-        grid-template-columns: 56px 1fr auto;
-      }
-      .row .ractions{
-        grid-column:auto;
-        justify-content:flex-end;
-      }
+    .row .ractions button{
+      padding:10px 12px;
+      border-radius:12px;
     }
 
     /* Views */
     .view{ display:none; }
     .view.active{ display:block; }
 
-    /* Deck */
+    /* ===== Deck ===== */
     .deckWrap{ padding:12px; display:flex; flex-direction:column; gap:12px; }
     .deckTop{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; justify-content:space-between; }
     .deckTopLeft{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
@@ -212,7 +241,7 @@
     .board{
       flex:1;
       border:1px solid var(--line);
-      border-radius:12px;
+      border-radius:14px;
       background:#0f1117;
       overflow:hidden;
       min-width:0;
@@ -227,8 +256,8 @@
     }
     .boardHeadLeft{ display:flex; align-items:center; gap:10px; }
     .chev{
-      width:34px; height:34px;
-      border-radius:10px;
+      width:38px; height:38px;
+      border-radius:12px;
       border:1px solid var(--line);
       background:#121623;
       display:grid; place-items:center;
@@ -236,31 +265,22 @@
       font-weight:900;
       user-select:none;
     }
-    .boardTitle{ font-size:13px; font-weight:900; }
+    .boardTitle{ font-size:14px; font-weight:900; }
     .boardCount{ font-size:12px; color:var(--muted); font-variant-numeric: tabular-nums; }
 
     .tileWrap{ padding:10px; }
     .tileGrid{
       display:grid;
+      grid-template-columns: repeat(auto-fill, minmax(78px, 1fr));
       gap:6px;
       max-height: min(58dvh, 58vh);
       overflow:auto;
       padding-right:4px;
-      /* default (PC/tablet): auto fill */
-      grid-template-columns: repeat(auto-fill, minmax(78px, 1fr));
     }
-
-    /* ===== Smartphone: force 6 columns ===== */
-    @media (max-width: 600px){
-      .tileGrid{
-        grid-template-columns: repeat(6, minmax(0, 1fr));
-      }
-    }
-
     .tile{
       position:relative;
       border:1px solid var(--line);
-      border-radius:12px;
+      border-radius:14px;
       background:#0b0c10;
       overflow:hidden;
       cursor:pointer;
@@ -281,22 +301,34 @@
       top:4px;
       right:4px;
       min-width:18px;
-      padding:2px 5px;
+      padding:2px 6px;
       border-radius:999px;
       background:rgba(0,0,0,.75);
       border:1px solid rgba(255,255,255,.25);
       color:#fff;
       font-size:11px;
-      font-weight:800;
+      font-weight:900;
       text-align:center;
       font-variant-numeric: tabular-nums;
       pointer-events:none;
     }
 
-    /* Mobile overall layout */
+    /* Mobile layout */
     @media (max-width: 980px){
       .boards{ flex-direction: column; }
-      input#q{ min-width: 160px; }
+      .tileGrid{ max-height: min(46dvh, 46vh); }
+      .tabsWrap{ max-width: 100%; }
+      select{ max-width: 100%; }
+    }
+    /* Force 6 columns on phones (requested) */
+    @media (max-width: 520px){
+      .tileGrid{
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+        gap:6px;
+      }
+      .badge{ font-size:10px; padding:2px 5px; }
+      #order{ width: 160px; }
+      #viewMode{ width: 150px; }
     }
 
     /* ===== Modal (smartphone safe) ===== */
@@ -340,6 +372,7 @@
       border-radius: 12px;
       padding: 8px 10px;
       cursor:pointer;
+      min-width: 44px;
     }
     .modalBody{
       padding: 14px;
@@ -347,16 +380,9 @@
       -webkit-overflow-scrolling: touch;
       flex: 1 1 auto;
     }
-
     @media (max-width: 980px){
-      .modalOverlay{
-        align-items: flex-end;
-        padding: 12px;
-      }
-      .modal{
-        max-height: min(88dvh, 88vh);
-        border-radius: 18px;
-      }
+      .modalOverlay{ align-items: flex-end; padding: 12px; }
+      .modal{ max-height: min(88dvh, 88vh); border-radius: 18px; }
     }
 
     /* Card modal layout */
@@ -371,7 +397,7 @@
       height:auto;
       aspect-ratio: 0.714;
       object-fit:cover;
-      border-radius:12px;
+      border-radius:14px;
       border:1px solid rgba(255,255,255,.08);
       background:#07080c;
     }
@@ -379,7 +405,7 @@
       font-size:20px;
       font-weight:900;
       line-height:1.2;
-      margin-bottom:12px;
+      margin-bottom:10px;
     }
     .btnGrid{
       display:grid;
@@ -408,26 +434,24 @@
 
 <header>
   <div class="topbar">
-    <div class="tabsWrap">
-      <div class="tabs" role="tablist" aria-label="画面切替">
+    <div class="tabsWrap" role="tablist" aria-label="画面切替">
+      <div class="tabs">
         <button id="tabSearch" class="tabbtn" role="tab" aria-selected="true">検索</button>
         <button id="tabDeck" class="tabbtn" role="tab" aria-selected="false">デッキ</button>
       </div>
-      <div class="pill" id="verBadge">ver 0.0.2</div>
+      <div class="pill" id="verBadge">ver 0.0.3</div>
     </div>
   </div>
 
-  <!-- ===== Search toolbar (requested layout) ===== -->
-  <div id="searchToolbar" class="toolbar">
-    <!-- Row 1: input + search button -->
-    <div class="toolbarRow nowrap">
+  <!-- Search controls (layout per request) -->
+  <div id="searchToolbar" class="searchToolbar">
+    <div class="searchRow1">
       <input id="q" type="text" placeholder="検索" />
       <button id="btnSearch">検索</button>
     </div>
 
-    <!-- Row 2: sort + clear + view dropdown -->
-    <div class="toolbarRow">
-      <select id="order" style="flex:1; min-width: 170px;">
+    <div class="searchRow2">
+      <select id="order">
         <option value="name">並び（名前）</option>
         <option value="released">並び（発売日）</option>
         <option value="set">並び（セット）</option>
@@ -435,14 +459,13 @@
 
       <button id="btnClear">クリア</button>
 
-      <select id="viewMode" style="min-width: 140px;">
+      <select id="viewMode" aria-label="表示モード">
         <option value="grid">表示（グリッド）</option>
         <option value="list">表示（リスト）</option>
       </select>
     </div>
 
-    <!-- Row 3: checkboxes -->
-    <div class="toolbarRow">
+    <div class="searchRow3">
       <label><input id="preferJa" type="checkbox" checked> 日本語版を優先（あれば）</label>
       <label><input id="collapseSame" type="checkbox"> 同名カードは1種類だけ（代表=最新印刷）</label>
     </div>
@@ -470,8 +493,7 @@
             <span class="pill">Side: <b id="sideCountTop">0</b></span>
           </div>
           <div style="display:flex; gap:8px; flex-wrap:wrap;">
-            <!-- Deck sort is independent from Search sort -->
-            <select id="sortDeck">
+            <select id="sortDeck" aria-label="デッキ並び替え">
               <option value="name">並び（名前）</option>
               <option value="cmc">並び（マナコスト）</option>
               <option value="type">並び（種類）</option>
@@ -576,7 +598,7 @@
   const $ = (id) => document.getElementById(id);
 
   // ===== Version =====
-  const APP_VERSION = "0.0.2";
+  const APP_VERSION = "0.0.3";
 
   // ===== Search view mode (grid/list) =====
   const SEARCH_VIEW_KEY = "mtg_search_view";
@@ -584,13 +606,13 @@
 
   // ===== Storage keys (backward compatible) =====
   const STORE_KEYS = [
-    "mtg_deck_store_tabs_v2", // ← 旧版（あなたの過去デッキがここ）
+    "mtg_deck_store_tabs_v2", // ← 指定されたキー（過去デッキ互換）
     "mtg_deck_store_v2",
     "mtg_deck_store_v1",
     "mtg_deck_store",
     "mtg_deck_store_v0"
   ];
-  const STORE_KEY = STORE_KEYS[0]; // always save into v2
+  const STORE_KEY = STORE_KEYS[0]; // always save into tabs_v2
 
   const state = {
     results: [],
@@ -608,6 +630,7 @@
 
     $("tabSearch").setAttribute("aria-selected", String(isSearch));
     $("tabDeck").setAttribute("aria-selected", String(!isSearch));
+
     $("searchToolbar").style.display = isSearch ? "flex" : "none";
 
     const nextHash = isSearch ? "#search" : "#deck";
@@ -633,10 +656,14 @@
   function setSearchView(mode){
     searchView = (mode === "list") ? "list" : "grid";
     localStorage.setItem(SEARCH_VIEW_KEY, searchView);
+
     const isGrid = searchView === "grid";
     $("resultsGrid").style.display = isGrid ? "grid" : "none";
     $("resultsList").style.display = isGrid ? "none" : "flex";
+
     $("viewMode").value = searchView;
+    $("viewMode").options[0].textContent = "表示（グリッド）";
+    $("viewMode").options[1].textContent = "表示（リスト）";
   }
 
   /* ===== Storage ===== */
@@ -693,24 +720,6 @@
     return /(^|\s)(t:|c:|o:|oracle:|f:|format:|lang:|is:|set:|cn:|rarity:|type:|pow|tou|cmc)\b/i.test(s) || /[:"]/g.test(s);
   }
 
-  // ふりがな付きの「量（りょう）子（し）」を「量子」に直すなど
-  function sanitizeQueryInput(raw){
-    let s = (raw || "").trim();
-    if (!s) return s;
-
-    // remove (...) and （...）
-    s = s.replace(/[（(][^）)]*[）)]/g, "");
-
-    // if it's plain Japanese name search, strip spaces (some copies include spaces)
-    if (looksJapanese(s) && !isAdvancedQuery(s)){
-      s = s.replace(/\s+/g, "");
-    }else{
-      s = s.replace(/\s+/g, " ").trim();
-    }
-
-    return s.trim();
-  }
-
   function getCardImage(card){
     if (card.image_uris?.normal) return card.image_uris.normal;
     if (Array.isArray(card.card_faces)) {
@@ -718,19 +727,30 @@
     }
     return "";
   }
+
+  // 表示名：日本語版がある時は printed_name を優先（ユーザー要望）
+  function getDisplayName(card){
+    return card.printed_name || card.name || "";
+  }
+
+  function getDisplayType(card){
+    return card.printed_type_line || card.type_line || "";
+  }
+
   function normalizeCard(card){
     return {
       id: card.id,
       oracle_id: card.oracle_id,
-      name: card.name,
+      name: getDisplayName(card),      // 表示名（日本語優先）
+      en_name: card.name || "",        // 英名（必要なら）
       set: (card.set || "").toUpperCase(),
       collector: card.collector_number || "",
       lang: card.lang || "",
       released_at: card.released_at || "",
       scryfall_uri: card.scryfall_uri,
       image: getCardImage(card),
-      cmc: typeof card.cmc === "number" ? card.cmc : (parseFloat(card.cmc) || 0),
-      type_line: card.type_line || ""
+      cmc: typeof card.cmc === "number" ? card.cmc : Number(card.cmc || 0),
+      type_line: getDisplayType(card)
     };
   }
 
@@ -745,11 +765,13 @@
   }
 
   function dateKey(d){ return (d && typeof d === "string") ? d : ""; }
+
   function exactRank(name, query){
     const a = (name||"").trim().toLowerCase();
     const q = (query||"").trim().toLowerCase();
     return a === q ? 0 : 1;
   }
+
   function pickBestPrint(cards, query, preferJa){
     let best = null;
     for (const c of cards){
@@ -762,19 +784,25 @@
       const ad = dateKey(c.released_at);
       const bd = dateKey(best.released_at);
       if (ad !== bd){ if (ad > bd) best = c; continue; }
-      const ae = exactRank(c.name, query);
-      const be = exactRank(best.name, query);
+
+      // printed_name を優先して一致判定（日本語名で検索した時の安定化）
+      const aName = (c.printed_name || c.name || "");
+      const bName = (best.printed_name || best.name || "");
+      const ae = exactRank(aName, query);
+      const be = exactRank(bName, query);
       if (ae !== be){ if (ae < be) best = c; continue; }
-      const aKey = ((c.set||"") + "|" + (c.collector||"") + "|" + (c.id||"")).toLowerCase();
-      const bKey = ((best.set||"") + "|" + (best.collector||"") + "|" + (best.id||"")).toLowerCase();
+
+      const aKey = ((c.set||"") + "|" + (c.collector_number||"") + "|" + (c.id||"")).toLowerCase();
+      const bKey = ((best.set||"") + "|" + (best.collector_number||"") + "|" + (best.id||"")).toLowerCase();
       if (aKey > bKey) best = c;
     }
     return best;
   }
-  function applyCollapseSame(cards, query, preferJa, collapseSame){
-    if (!collapseSame) return cards;
+
+  function applyCollapseSame(rawCards, query, preferJa, collapseSame){
+    if (!collapseSame) return rawCards;
     const groups = new Map();
-    for (const c of cards){
+    for (const c of rawCards){
       const k = c.oracle_id || c.id;
       if (!groups.has(k)) groups.set(k, []);
       groups.get(k).push(c);
@@ -783,11 +811,14 @@
     for (const arr of groups.values()) picked.push(pickBestPrint(arr, query, preferJa));
     return picked;
   }
+
   function sortResults(cards, query, preferJa){
     const qLower = (query||"").trim().toLowerCase();
     cards.sort((a,b)=>{
-      const ae = (a.name||"").toLowerCase() === qLower ? 0 : 1;
-      const be = (b.name||"").toLowerCase() === qLower ? 0 : 1;
+      const aname = (a.name||"").toLowerCase();
+      const bname = (b.name||"").toLowerCase();
+      const ae = aname === qLower ? 0 : 1;
+      const be = bname === qLower ? 0 : 1;
       if (ae !== be) return ae - be;
 
       if (preferJa){
@@ -796,9 +827,7 @@
         if (aj !== bj) return aj - bj;
       }
 
-      const an = (a.name||"").toLowerCase();
-      const bn = (b.name||"").toLowerCase();
-      if (an !== bn) return an.localeCompare(bn);
+      if (aname !== bname) return aname.localeCompare(bname);
 
       const ad = dateKey(a.released_at);
       const bd = dateKey(b.released_at);
@@ -809,9 +838,20 @@
     return cards;
   }
 
+  // 「量（りょう）子（し）の…」対策：括弧入り送り仮名を許容する name:/regex/ をフォールバック
+  function escapeRegex(s){
+    return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  }
+  function buildFuriganaRegex(input){
+    // 例: 量子の謎かけ屋 -> 量(?:\([^)]*\))?子(?:\([^)]*\))?の(?:\([^)]*\))?謎(?:\([^)]*\))?か(?:\([^)]*\))?け(?:\([^)]*\))?屋(?:\([^)]*\))?
+    const chars = Array.from(input.trim()).filter(ch => ch !== " " && ch !== "　");
+    const parts = chars.map(ch => `${escapeRegex(ch)}(?:\\([^)]*\\))?`);
+    // 多少ゆるく：途中に空白が入ってもOK
+    return parts.join("\\s*");
+  }
+
   async function searchCards(rawInput){
-    const cleaned = sanitizeQueryInput(rawInput);
-    const s = cleaned.trim();
+    const s = rawInput.trim();
     if (!s){
       state.results = [];
       renderResults();
@@ -824,6 +864,7 @@
 
     setStatus("検索中…");
 
+    // Advanced query: keep as-is (but preferJa adds lang:ja if japanese and not specified)
     if (isAdvancedQuery(s)){
       const queries = (preferJa && looksJapanese(s) && !/(^|\s)lang:/i.test(s))
         ? [`lang:ja ${s}`, s]
@@ -833,38 +874,78 @@
         const r = await fetchSearch(q);
         const arr = Array.isArray(r.data?.data) ? r.data.data : [];
         if (arr.length > 0){
-          let cards = arr.map(normalizeCard);
-          cards = applyCollapseSame(cards, s, preferJa, collapseSame);
+          let rawCards = arr; // keep raw first
+          rawCards = applyCollapseSame(rawCards, s, preferJa, collapseSame);
+          let cards = rawCards.map(normalizeCard);
           cards = sortResults(cards, s, preferJa);
           state.results = cards;
           renderResults();
-          setStatus(`ヒット: ${cards.length}件\nq=${q}`);
+          setStatus(`ヒット: ${cards.length}件`);
           return;
         }
       }
+
       state.results = [];
       renderResults();
       setStatus("見つかりませんでした");
       return;
     }
 
+    // Normal: prefer ja + fallback any
     const merged = new Map();
     const pushAll = (arr)=>{ for (const c of arr) merged.set(c.id, c); };
 
+    // 1) Japanese first (if enabled)
+    let jaHitCount = 0;
     if (preferJa){
       const rJa = await fetchSearch(`lang:ja ${s}`);
-      pushAll(Array.isArray(rJa.data?.data) ? rJa.data.data : []);
+      const jaArr = Array.isArray(rJa.data?.data) ? rJa.data.data : [];
+      jaHitCount = jaArr.length;
+      pushAll(jaArr);
+
+      // 1-2) Furigana fallback (only if japanese query and no hit)
+      if (jaHitCount === 0 && looksJapanese(s)){
+        const rx = buildFuriganaRegex(s);
+        const rRx = await fetchSearch(`lang:ja name:/${rx}/`);
+        const rxArr = Array.isArray(rRx.data?.data) ? rRx.data.data : [];
+        pushAll(rxArr);
+      }
     }
+
+    // 2) Any language fallback
     const rAny = await fetchSearch(s);
     pushAll(Array.isArray(rAny.data?.data) ? rAny.data.data : []);
 
     if (merged.size > 0){
-      let cards = Array.from(merged.values()).map(normalizeCard);
-      cards = applyCollapseSame(cards, s, preferJa, collapseSame);
+      let rawCards = Array.from(merged.values());
+
+      rawCards = applyCollapseSame(rawCards, s, preferJa, collapseSame);
+
+      // preferJa がONなら「ja印刷があれば、それを優先して表示」したいので、
+      // normalize後に、同じoracle_idが混在する場合は ja を優先して残す（collapseSame OFFでも効く）
+      if (preferJa){
+        const bestByOracle = new Map();
+        for (const c of rawCards){
+          const key = c.oracle_id || c.id;
+          const cur = bestByOracle.get(key);
+          if (!cur) { bestByOracle.set(key, c); continue; }
+          const curJ = (cur.lang === "ja") ? 1 : 0;
+          const cJ = (c.lang === "ja") ? 1 : 0;
+          if (cJ > curJ) bestByOracle.set(key, c);
+        }
+        // ただし collapseSame がOFFのときは「全部見たい」ので、ここで置き換えない
+        // → collapseSame がONのときだけ bestByOracle を採用
+        if (collapseSame){
+          rawCards = Array.from(bestByOracle.values());
+        }
+      }
+
+      let cards = rawCards.map(normalizeCard);
       cards = sortResults(cards, s, preferJa);
+
       state.results = cards;
       renderResults();
-      setStatus(`ヒット: ${cards.length}件\nq=${preferJa ? "lang:ja " + s + " + " + s : s}`);
+      setStatus(`ヒット: ${cards.length}件`);
       return;
     }
 
@@ -888,13 +969,10 @@
         const ac = Number(a.cmc ?? 0);
         const bc = Number(b.cmc ?? 0);
         if (ac !== bc) return ac - bc;
-        return (a.name||"").localeCompare(b.name||"");
-      }
-      if (mode === "type"){
-        const at = (a.type_line || "").toLowerCase();
-        const bt = (b.type_line || "").toLowerCase();
+      } else if (mode === "type"){
+        const at = (a.type_line||"");
+        const bt = (b.type_line||"");
         if (at !== bt) return at.localeCompare(bt);
-        return (a.name||"").localeCompare(b.name||"");
       }
       return (a.name||"").localeCompare(b.name||"");
     });
@@ -910,6 +988,7 @@
     renderDeck();
   }
 
+  // keepZero=true のときは 0枚でも消さない（モーダルが閉じないため）
   function changeQty(board, cardId, delta, keepZero=false){
     const obj = boardObj(board);
     const it = obj[cardId];
@@ -925,6 +1004,7 @@
     state.deck.updatedAt = new Date().toISOString();
     renderDeck();
 
+    // モーダル更新（閉じない）
     if (state.openCard && state.openCard.board === board && state.openCard.id === cardId){
       renderCardModal();
     }
@@ -936,7 +1016,7 @@
     const b = boardObj(to);
     const it = a[cardId];
     if (!it) return;
-    if ((it.qty||0) <= 0) return;
+    if ((it.qty||0) <= 0) return; // 0枚は移動しない
 
     if (b[cardId]) b[cardId].qty += it.qty;
     else b[cardId] = it;
@@ -945,6 +1025,7 @@
     state.deck.updatedAt = new Date().toISOString();
     renderDeck();
 
+    // 開いてるモーダルの対象を移動先に更新
     if (state.openCard && state.openCard.id === cardId){
       state.openCard.board = to;
       renderCardModal();
@@ -977,6 +1058,7 @@
     list.innerHTML = "";
 
     for (const c of state.results){
+      // ---- grid card ----
       const wrap = document.createElement("div");
       wrap.className = "card";
 
@@ -995,6 +1077,7 @@
 
       const sub = document.createElement("div");
       sub.className = "sub";
+      // 検索結果のサブ情報は残す（必要なら後で削れます）
       sub.textContent = `${c.set}${c.collector ? " #" + c.collector : ""}${c.lang ? " / " + c.lang : ""}${c.released_at ? " / " + c.released_at : ""}`;
 
       const actions = document.createElement("div");
@@ -1009,7 +1092,7 @@
       btnSide.onclick = () => addToBoard("side", c, 1);
 
       const btnOpen = document.createElement("button");
-      btnOpen.textContent = "Scryfall";
+      btnOpen.textContent = "詳細";
       btnOpen.onclick = () => window.open(c.scryfall_uri, "_blank", "noopener,noreferrer");
 
       actions.append(btnMain, btnSide, btnOpen);
@@ -1017,6 +1100,7 @@
       wrap.append(img, meta);
       grid.appendChild(wrap);
 
+      // ---- list row (buttons under name) ----
       const row = document.createElement("div");
       row.className = "row";
 
@@ -1032,12 +1116,6 @@
       const rname = document.createElement("div");
       rname.className = "rname";
       rname.textContent = c.name;
-
-      const rsub = document.createElement("div");
-      rsub.className = "rsub";
-      rsub.textContent = `${c.set}${c.collector ? " #" + c.collector : ""}${c.lang ? " / " + c.lang : ""}${c.released_at ? " / " + c.released_at : ""}`;
-
-      rmeta.append(rname, rsub);
 
       const ractions = document.createElement("div");
       ractions.className = "ractions";
@@ -1056,7 +1134,14 @@
 
       ractions.append(lMain, lSide, lOpen);
 
-      row.append(limg, rmeta, ractions);
+      // サブ行は任意（邪魔ならここ消してOK）
+      const rsub = document.createElement("div");
+      rsub.className = "rsub";
+      rsub.textContent = `${c.set}${c.collector ? " #" + c.collector : ""}${c.lang ? " / " + c.lang : ""}${c.released_at ? " / " + c.released_at : ""}`;
+
+      rmeta.append(rname, rsub, ractions);
+
+      row.append(limg, rmeta);
       list.appendChild(row);
     }
   }
@@ -1130,7 +1215,7 @@
   }
 
   function closeCardModal(){
-    cleanupZeros();
+    cleanupZeros();            // 閉じる時だけ0枚を掃除
     state.openCard = null;
     hideOverlay("cardModalOverlay");
     renderDeck();
@@ -1150,7 +1235,7 @@
 
     $("cardModalTitle").textContent = `${board === "main" ? "Main" : "Side"}のカード操作`;
 
-    // ★カード名の下の「セット/言語/日付」行は表示しない（要望対応）
+    // 要望：カード名の下の「USG #174 / ja / 1998-...」など1行を非表示 → その行を出さない
     body.innerHTML = `
       <div class="cardModalRow">
         <img src="${safe.image || ""}" alt="">
@@ -1187,7 +1272,9 @@
     refreshDeckSelect();
     showOverlay("settingsModalOverlay");
   }
-  function closeSettingsModal(){ hideOverlay("settingsModalOverlay"); }
+  function closeSettingsModal(){
+    hideOverlay("settingsModalOverlay");
+  }
 
   /* ===== Save/Load/Delete ===== */
   function saveCurrentDeck(){
@@ -1244,10 +1331,6 @@
     setStatus("新規デッキを作成しました");
   }
 
-  /* ===== UI toggles ===== */
-  $("toggleMain").onclick = () => { state.boardCollapsed.main = !state.boardCollapsed.main; renderDeck(); };
-  $("toggleSide").onclick = () => { state.boardCollapsed.side = !state.boardCollapsed.side; renderDeck(); };
-
   /* ===== helpers ===== */
   function escapeHtml(s){
     return String(s)
@@ -1268,6 +1351,9 @@
   $("collapseSame").addEventListener("change", ()=>{ if ($("q").value.trim()) searchCards($("q").value); });
 
   $("viewMode").addEventListener("change", ()=> setSearchView($("viewMode").value));
+
+  $("toggleMain").onclick = () => { state.boardCollapsed.main = !state.boardCollapsed.main; renderDeck(); };
+  $("toggleSide").onclick = () => { state.boardCollapsed.side = !state.boardCollapsed.side; renderDeck(); };
 
   $("btnClearBoards").onclick = () => {
     if (!confirm("Main/Side を全消しします。よろしいですか？")) return;
@@ -1313,7 +1399,6 @@
 
   /* ===== init ===== */
   $("verBadge").textContent = `ver ${APP_VERSION}`;
-
   loadStore();
   refreshDeckSelect();
 
@@ -1321,7 +1406,6 @@
   renderResults();
   renderDeck();
   setStatus("待機中");
-  $("viewMode").value = searchView;
   setSearchView(searchView);
   syncViewFromHash();
 
