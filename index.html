@@ -84,7 +84,6 @@
     /* Deck UI */
     .deck { padding:12px; display:flex; flex-direction:column; gap:12px; }
     .deckbar { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
-    .deckbar .smallin { width: 180px; }
 
     .boards { display:flex; gap:10px; }
     .board { flex:1; border:1px solid var(--line); border-radius:12px; background:#0f1117; overflow:hidden; min-width:0; }
@@ -93,10 +92,11 @@
     .boardhead .count { font-size:12px; color:var(--muted); font-variant-numeric: tabular-nums; }
 
     .tileWrap { padding:10px; }
+    /* ★横を増やす（=小さめ） */
     .tileGrid {
       display:grid;
-      grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
-      gap:6px;
+      grid-template-columns: repeat(auto-fill, minmax(52px, 1fr));
+      gap:5px;
       max-height: 58vh;
       overflow:auto;
       padding-right:4px;
@@ -137,9 +137,27 @@
     .view { display:none; }
     .view.active { display:block; }
 
+    /* Modal (Deck menu) */
+    .modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.55);
+      display: none;
+      place-items: center;
+      padding: 14px;
+      z-index: 50;
+    }
+    .modalInner {
+      width: min(520px, 96vw);
+      background: #121623;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 12px;
+    }
+
     @media (max-width: 980px) {
       .boards { flex-direction: column; }
-      .tileGrid { max-height: 46vh; grid-template-columns: repeat(auto-fill, minmax(60px, 1fr)); }
+      .tileGrid { max-height: 46vh; grid-template-columns: repeat(auto-fill, minmax(50px, 1fr)); gap:5px; }
       .row { grid-template-columns: 52px 1fr; }
       .row .ractions { grid-column: 1 / -1; justify-content:flex-start; }
       .row img { width:52px; height:72px; }
@@ -221,14 +239,28 @@
   <section id="viewDeck" class="view">
     <div class="panel">
       <div class="deck">
+
+        <!-- ★ボタン群は設定メニューへ移動、ここは表示/ソート/設定だけ -->
         <div class="deckbar">
           <span class="pill">現在: <b id="currentDeckName">（未保存）</b></span>
-          <input id="deckName" class="smallin" type="text" placeholder="デッキ名（保存用）" />
-          <button id="btnSaveDeck">保存</button>
-          <select id="deckSelect"></select>
-          <button id="btnLoadDeck">読み込み</button>
-          <button id="btnDeleteDeck">削除</button>
-          <button id="btnNewDeck">新規</button>
+
+          <label>MAIN並び
+            <select id="mainSort">
+              <option value="name">名前</option>
+              <option value="cmc">マナコスト</option>
+              <option value="type">タイプ</option>
+            </select>
+          </label>
+
+          <label>SIDE並び
+            <select id="sideSort">
+              <option value="name">名前</option>
+              <option value="cmc">マナコスト</option>
+              <option value="type">タイプ</option>
+            </select>
+          </label>
+
+          <button id="btnDeckMenu" title="デッキ設定">⚙ 設定</button>
         </div>
 
         <div class="boards">
@@ -260,6 +292,38 @@
           <button id="btnClearBoards">Main/Side 全消し</button>
         </div>
         <textarea id="exportBox" placeholder="ここにデッキリストを出力（コピー用）"></textarea>
+
+        <!-- ===== Deck Menu Modal ===== -->
+        <div id="deckModal" class="modal">
+          <div class="modalInner">
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
+              <b>デッキ設定</b>
+              <button id="btnCloseDeckMenu">✕</button>
+            </div>
+
+            <div style="display:flex; flex-direction:column; gap:10px; margin-top:10px;">
+              <input id="deckName" class="smallin" type="text" placeholder="デッキ名（保存用）" />
+
+              <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                <button id="btnSaveDeck">保存</button>
+                <button id="btnNewDeck">新規</button>
+              </div>
+
+              <select id="deckSelect"></select>
+
+              <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                <button id="btnLoadDeck">読み込み</button>
+                <button id="btnDeleteDeck">削除</button>
+              </div>
+
+              <div class="status" style="margin-top:6px;">
+                ※保存/読み込み/削除/新規はここから操作します
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- ===== /Deck Menu Modal ===== -->
+
       </div>
     </div>
   </section>
@@ -375,6 +439,10 @@
     $("currentDeckName").textContent = name ? name : "（未保存）";
   }
 
+  /* ===== Modal (Deck Menu) ===== */
+  function openDeckMenu() { $("deckModal").style.display = "grid"; }
+  function closeDeckMenu() { $("deckModal").style.display = "none"; }
+
   /* ===== Scryfall ===== */
   function looksJapanese(s) { return /[\u3040-\u30FF\u4E00-\u9FFF]/.test(s); }
   function isAdvancedQuery(s) {
@@ -387,6 +455,8 @@
     }
     return "";
   }
+
+  // ★デッキソート用に cmc / mana_cost / type_line を持つ
   function normalizeCard(card) {
     return {
       id: card.id,
@@ -397,7 +467,11 @@
       lang: card.lang || "",
       released_at: card.released_at || "",
       scryfall_uri: card.scryfall_uri,
-      image: getCardImage(card)
+      image: getCardImage(card),
+
+      cmc: (typeof card.cmc === "number") ? card.cmc : 999,
+      mana_cost: card.mana_cost || "",
+      type_line: card.type_line || ""
     };
   }
 
@@ -413,14 +487,12 @@
 
   function dateKey(released_at) { return (released_at && typeof released_at === "string") ? released_at : ""; }
 
-  // exact match rank: 0 (exact) first
   function exactRank(cardName, query) {
     const a = (cardName || "").trim().toLowerCase();
     const q = (query || "").trim().toLowerCase();
     return a === q ? 0 : 1;
   }
 
-  // pick representative print: (preferJa -> latest release -> exact match -> tie)
   function pickBestPrint(cards, query, preferJa) {
     let best = null;
     for (const c of cards) {
@@ -460,7 +532,6 @@
     return picked;
   }
 
-  // sort: exact match -> preferJa -> name -> release desc -> set
   function sortResults(cards, query, preferJa) {
     const qLower = (query || "").trim().toLowerCase();
     cards.sort((a, b) => {
@@ -595,15 +666,50 @@
   }
 
   function countBoard(obj) { return Object.values(obj).reduce((sum, x) => sum + (x.qty || 0), 0); }
-  function listEntries(obj) { return Object.values(obj).sort((a,b) => (a.name||"").localeCompare(b.name||"")); }
+
+  // --- ソート用 ---
+  function typeBucket(typeLine) {
+    const t = (typeLine || "").toLowerCase();
+    if (t.includes("land")) return 0;
+    if (t.includes("creature")) return 1;
+    if (t.includes("planeswalker")) return 2;
+    if (t.includes("instant")) return 3;
+    if (t.includes("sorcery")) return 4;
+    if (t.includes("enchantment")) return 5;
+    if (t.includes("artifact")) return 6;
+    if (t.includes("battle")) return 7;
+    return 9;
+  }
+
+  function listEntries(obj, mode = "name") {
+    const arr = Object.values(obj);
+
+    arr.sort((a, b) => {
+      if (mode === "cmc") {
+        const d = (a.cmc ?? 999) - (b.cmc ?? 999);
+        if (d !== 0) return d;
+        return (a.name || "").localeCompare(b.name || "", "en");
+      }
+      if (mode === "type") {
+        const d = typeBucket(a.type_line) - typeBucket(b.type_line);
+        if (d !== 0) return d;
+        const c = (a.cmc ?? 999) - (b.cmc ?? 999);
+        if (c !== 0) return c;
+        return (a.name || "").localeCompare(b.name || "", "en");
+      }
+      return (a.name || "").localeCompare(b.name || "", "en");
+    });
+
+    return arr;
+  }
 
   function exportDeck() {
     const lines = [];
     lines.push("Main");
-    for (const it of listEntries(state.deck.main)) lines.push(`${it.qty} ${it.name}`);
+    for (const it of listEntries(state.deck.main, $("mainSort").value)) lines.push(`${it.qty} ${it.name}`);
     lines.push("");
     lines.push("Side");
-    for (const it of listEntries(state.deck.side)) lines.push(`${it.qty} ${it.name}`);
+    for (const it of listEntries(state.deck.side, $("sideSort").value)) lines.push(`${it.qty} ${it.name}`);
     $("exportBox").value = lines.join("\n");
   }
 
@@ -619,7 +725,7 @@
   /* ===== Save/Load ===== */
   function saveCurrentDeck() {
     const name = $("deckName").value.trim();
-    if (!name) { setStatus("デッキ名を入力してください（デッキ画面）"); return; }
+    if (!name) { setStatus("デッキ名を入力してください（デッキ設定）"); return; }
     const store = loadStore();
     const toSave = structuredClone(state.deck);
     toSave.name = name;
@@ -629,17 +735,24 @@
     setCurrentDeckName(name);
     refreshDeckSelect();
     setStatus(`保存しました: ${name}`);
+    closeDeckMenu();
   }
 
   function loadDeckByName(name) {
     const store = loadStore();
     const d = store.decks[name];
     if (!d) { setStatus(`見つかりません: ${name}`); return; }
-    state.deck = { name: d.name || name, updatedAt: d.updatedAt || new Date().toISOString(), main: d.main || {}, side: d.side || {} };
+    state.deck = {
+      name: d.name || name,
+      updatedAt: d.updatedAt || new Date().toISOString(),
+      main: d.main || {},
+      side: d.side || {}
+    };
     setCurrentDeckName(name);
     $("deckName").value = name;
     renderDeck();
     setStatus(`読み込みました: ${name}`);
+    closeDeckMenu();
   }
 
   function deleteDeckByName(name) {
@@ -659,6 +772,7 @@
     renderDeck();
     $("exportBox").value = "";
     setStatus("新規デッキを作成しました");
+    closeDeckMenu();
   }
 
   /* ===== Render results (Grid + List) ===== */
@@ -822,7 +936,8 @@
 
   function renderTiles(container, obj, boardName) {
     container.innerHTML = "";
-    for (const it of listEntries(obj)) container.appendChild(makeTile(boardName, it));
+    const mode = (boardName === "main") ? $("mainSort").value : $("sideSort").value;
+    for (const it of listEntries(obj, mode)) container.appendChild(makeTile(boardName, it));
   }
 
   function renderDeck() {
@@ -844,8 +959,6 @@
   $("q").addEventListener("keydown", (e) => { if (e.key === "Enter") searchCards($("q").value); });
 
   $("order").addEventListener("change", () => { if ($("q").value.trim()) searchCards($("q").value); });
-  $("preferJa").addEventListener("change", () => { /* 検索結果ページ中なら再検索してもOKだが、ここは何もしない */ });
-  $("collapseSame").addEventListener("change", () => { /* 同上 */ });
 
   $("btnBackToForm").onclick = () => setSearchPage("form");
   $("viewModeGrid").onclick = () => setResultsMode("grid");
@@ -854,6 +967,18 @@
   $("btnExport").onclick = exportDeck;
   $("btnClearBoards").onclick = clearBoards;
 
+  // ソート変更で即反映
+  $("mainSort").addEventListener("change", renderDeck);
+  $("sideSort").addEventListener("change", renderDeck);
+
+  // Deck menu open/close
+  $("btnDeckMenu").onclick = openDeckMenu;
+  $("btnCloseDeckMenu").onclick = closeDeckMenu;
+  $("deckModal").addEventListener("click", (e) => {
+    if (e.target && e.target.id === "deckModal") closeDeckMenu();
+  });
+
+  // Save/Load/New/Delete (modal)
   $("btnSaveDeck").onclick = saveCurrentDeck;
   $("btnLoadDeck").onclick = () => {
     const name = $("deckSelect").value;
