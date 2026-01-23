@@ -3,10 +3,12 @@
    - Prefer Japanese printing
    - Collapse same (latest printing)
    - Deck builder (Main/Side) with modal ops
-   - Fix: Japanese name search
-     - Furigana-in-parentheses Japanese name (（） and () + spaces)
+   - Fix: Japanese search
+     - Furigana-in-parentheses (（） and () + spaces)
      - Japanese printed_name even when oracle name is English:
        resolve by /cards/named?lang=ja => oracle_id, then search by oracleid:
+     - Japanese partial query:
+       use /cards/autocomplete (multilingual) => candidate names => resolve => oracleid:
 */
 
 (() => {
@@ -15,7 +17,7 @@
   const $ = (id) => document.getElementById(id);
 
   // ===== Version =====
-  const APP_VERSION = "0.0.4";
+  const APP_VERSION = "0.0.5";
 
   // ===== Search view mode (grid/list) =====
   const SEARCH_VIEW_KEY = "mtg_search_view";
@@ -38,6 +40,20 @@
     openCard: null, // { board:"main"|"side", id:"..." }
     boardCollapsed: { main: false, side: false },
   };
+
+  // =========================
+  // Global safety (show errors)
+  // =========================
+  window.addEventListener("error", (e) => {
+    try {
+      console.error(e?.error || e);
+      const msg = e?.error?.message || e?.message || "unknown error";
+      const st = $("status");
+      if (st) st.textContent = `エラー: ${msg}`;
+      const ds = $("deckStatus");
+      if (ds) ds.textContent = `エラー: ${msg}`;
+    } catch {}
+  });
 
   // =========================
   // View switching
@@ -139,6 +155,28 @@
   }
 
   // =========================
+  // Deck sort helpers (defined early)
+  // =========================
+  const TYPE_ORDER = ["Land", "Creature", "Instant", "Sorcery", "Artifact", "Enchantment", "Planeswalker"];
+
+  function normalizeForSortName(s) {
+    return String(s || "")
+      .replace(/\s+/g, " ")
+      .replace(/[（(][^）)]*[）)]/g, "") // 括弧内（ふりがな等）を除去
+      .replace(/[・･]/g, "")
+      .trim();
+  }
+
+  function primaryTypeOrder(typeLine) {
+    const left = String(typeLine || "").split("—")[0] || "";
+    const tokens = left.split(/\s+/).filter(Boolean);
+    for (let i = 0; i < TYPE_ORDER.length; i++) {
+      if (tokens.includes(TYPE_ORDER[i])) return i;
+    }
+    return TYPE_ORDER.length;
+  }
+
+  // =========================
   // Scryfall helpers
   // =========================
   function looksJapanese(s) {
@@ -146,7 +184,6 @@
   }
 
   function isAdvancedQuery(s) {
-    // If they typed "t:" "o:" etc or quotes/colon etc treat as advanced
     return (
       /(^|\s)(t:|c:|o:|oracle:|f:|format:|lang:|is:|set:|cn:|rarity:|type:|pow|tou|cmc)\b/i.test(
         s
@@ -178,9 +215,9 @@
     return {
       id: card.id,
       oracle_id: card.oracle_id,
-      name: displayName, // 表示名（日本語優先）
-      sort_name: normalizeForSortName(displayName), // ソート用
-      type_order: primaryTypeOrder(displayType), // タイプ順用
+      name: displayName,
+      sort_name: normalizeForSortName(displayName),
+      type_order: primaryTypeOrder(displayType),
       en_name: card.name || "",
       set: (card.set || "").toUpperCase(),
       collector: card.collector_number || "",
@@ -201,10 +238,10 @@
 
     const res = await fetch(url.toString(), { headers: { Accept: "application/json" } });
     const data = await res.json().catch(() => ({}));
-    return { ok: res.ok, data, status: res.status };
+    return { ok: res.ok, data, status: res.status, details: data?.details || "" };
   }
 
-     // NEW: Autocomplete (multilingual)
+  // NEW: Autocomplete (multilingual)
   async function fetchAutocomplete(q) {
     const url = new URL("https://api.scryfall.com/cards/autocomplete");
     url.searchParams.set("q", q);
@@ -217,11 +254,11 @@
     return Array.isArray(data?.data) ? data.data : [];
   }
 
-  // NEW: /cards/named で日本語印刷名 → oracle_id 解決（printed_name検索の弱さを回避）
+  // NEW: /cards/named for JA printed name -> oracle_id
   function normalizeJaNameForResolve(s) {
     return String(s || "")
-      .replace(/[（(][^）)]*[）)]/g, "") // 括弧内（ふりがな等）を除去
-      .replace(/[\s　]+/g, "") // 半角/全角スペース除去
+      .replace(/[（(][^）)]*[）)]/g, "") // ふりがな等を除去
+      .replace(/[\s　]+/g, "") // 空白除去
       .trim();
   }
 
@@ -336,10 +373,6 @@
     return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   }
 
-  // Scryfallの表示: 量（りょう）子（し）の謎（なぞ）かけ屋（や）
-  // - 全角/半角括弧 両対応
-  // - 括弧前後に空白が入ってもOK
-  // - 文字間に空白が入ってもOK
   function buildFuriganaRegex(input) {
     const trimmed = String(input || "").trim();
     const chars = Array.from(trimmed).filter((ch) => ch !== " " && ch !== "　");
@@ -355,266 +388,138 @@
     return parts.join("\\s*");
   }
 
-    async function searchCards(rawInput) {
-    const s = rawInput.trim();
-    if (!s) {
-      state.results = [];
-      renderResults();
-      setStatus("検索ワードを入力してください");
-      return;
-    }
+  // =========================
+  // Search
+  // =========================
+  async function searchCards(rawInput) {
+    try {
+      const s = rawInput.trim();
+      if (!s) {
+        state.results = [];
+        renderResults();
+        setStatus("検索ワードを入力してください");
+        return;
+      }
 
-    const preferJa = $("preferJa").checked;
-    const collapseSame = $("collapseSame").checked;
+      const preferJa = $("preferJa").checked;
+      const collapseSame = $("collapseSame").checked;
 
-    setStatus("検索中…");
+      setStatus("検索中…");
 
-    // Advanced query: keep as-is (optionally try lang:ja first)
-    if (isAdvancedQuery(s)) {
-      const queries =
-        preferJa && looksJapanese(s) && !/(^|\s)lang:/i.test(s)
-          ? [`lang:ja ${s}`, s]
-          : [s];
+      // Advanced query: keep as-is (optionally try lang:ja first)
+      if (isAdvancedQuery(s)) {
+        const queries =
+          preferJa && looksJapanese(s) && !/(^|\s)lang:/i.test(s)
+            ? [`lang:ja ${s}`, s]
+            : [s];
 
-      for (const q of queries) {
-        const r = await fetchSearch(q);
-        const arr = Array.isArray(r.data?.data) ? r.data.data : [];
-        if (arr.length > 0) {
-          let rawCards = arr;
-          rawCards = applyCollapseSame(rawCards, s, preferJa, collapseSame);
-          let cards = rawCards.map(normalizeCard);
-          cards = sortResults(cards, s, preferJa);
+        for (const q of queries) {
+          const r = await fetchSearch(q);
+          const arr = Array.isArray(r.data?.data) ? r.data.data : [];
+          if (arr.length > 0) {
+            let rawCards = arr;
+            rawCards = applyCollapseSame(rawCards, s, preferJa, collapseSame);
+            let cards = rawCards.map(normalizeCard);
+            cards = sortResults(cards, s, preferJa);
 
-          state.results = cards;
-          renderResults();
-          setStatus(`ヒット: ${cards.length}件`);
-          return;
+            state.results = cards;
+            renderResults();
+            setStatus(`ヒット: ${cards.length}件`);
+            return;
+          }
         }
+
+        state.results = [];
+        renderResults();
+        setStatus("見つかりませんでした");
+        return;
+      }
+
+      const merged = new Map();
+      const pushAll = (arr) => {
+        for (const c of arr) merged.set(c.id, c);
+      };
+
+      const isJaInput = looksJapanese(s);
+
+      // (1) 日本語フルネーム寄り: named(lang=ja) -> oracleid:
+      if (isJaInput) {
+        const oid = await resolveJapaneseToOracleId(s);
+        if (oid) {
+          const rOid = await fetchSearch(`oracleid:${oid}`);
+          const arr = Array.isArray(rOid.data?.data) ? rOid.data.data : [];
+          pushAll(arr);
+        }
+      }
+
+      // (2) 日本語部分一致: autocomplete -> named(lang=ja) -> oracleid:
+      if (isJaInput) {
+        const norm = normalizeJaNameForResolve(s);
+        if (norm.length >= 2 && merged.size === 0) {
+          const sug = await fetchAutocomplete(norm);
+          const MAX_TRY = 6;
+          for (const name of sug.slice(0, MAX_TRY)) {
+            const oid2 = await resolveJapaneseToOracleId(name);
+            if (!oid2) continue;
+            const rOid2 = await fetchSearch(`oracleid:${oid2}`);
+            const arr2 = Array.isArray(rOid2.data?.data) ? rOid2.data.data : [];
+            pushAll(arr2);
+          }
+        }
+      }
+
+      // (3) preferJa: lang:ja search（補助）
+      let jaHitCount = 0;
+      if (preferJa) {
+        const rJa = await fetchSearch(`lang:ja ${s}`);
+        const jaArr = Array.isArray(rJa.data?.data) ? rJa.data.data : [];
+        jaHitCount = jaArr.length;
+        pushAll(jaArr);
+
+        // (4) Furigana regex fallback（日本語で、まだ何もないとき）
+        if (jaHitCount === 0 && isJaInput && merged.size === 0) {
+          const rx = buildFuriganaRegex(s);
+          if (rx) {
+            const rRx = await fetchSearch(`lang:ja name:/${rx}/`);
+            const rxArr = Array.isArray(rRx.data?.data) ? rRx.data.data : [];
+            pushAll(rxArr);
+
+            if (merged.size === 0) {
+              const rxLoose = rx.replace(/\\s\*/g, ".*?");
+              const rRx2 = await fetchSearch(`lang:ja name:/${rxLoose}/`);
+              const rxArr2 = Array.isArray(rRx2.data?.data) ? rRx2.data.data : [];
+              pushAll(rxArr2);
+            }
+          }
+        }
+      }
+
+      // (5) Any language fallback（英語入力のみ）
+      if (!isJaInput) {
+        const rAny = await fetchSearch(s);
+        pushAll(Array.isArray(rAny.data?.data) ? rAny.data.data : []);
+      }
+
+      if (merged.size > 0) {
+        let rawCards = Array.from(merged.values());
+        rawCards = applyCollapseSame(rawCards, s, preferJa, collapseSame);
+
+        let cards = rawCards.map(normalizeCard);
+        cards = sortResults(cards, s, preferJa);
+
+        state.results = cards;
+        renderResults();
+        setStatus(`ヒット: ${cards.length}件`);
+        return;
       }
 
       state.results = [];
       renderResults();
       setStatus("見つかりませんでした");
-      return;
+    } catch (err) {
+      console.error(err);
+      setStatus(`検索エラー: ${err?.message || String(err)}`);
     }
-
-    // Normal:
-    // 日本語は /cards/search の部分一致が弱く、英語fallbackで関係ないカードが混ざりがち。
-    // => 日本語入力時は oracle_id 解決（named/autocomplete）を優先し、英語fallback(search s)をしない
-    const merged = new Map();
-    const pushAll = (arr) => {
-      for (const c of arr) merged.set(c.id, c);
-    };
-
-    const isJaInput = looksJapanese(s);
-
-    // (1) 日本語フルネーム寄りなら /cards/named?lang=ja で oracle_id 解決
-    if (isJaInput) {
-      const oid = await resolveJapaneseToOracleId(s);
-      if (oid) {
-        const rOid = await fetchSearch(`oracleid:${oid}`);
-        const arr = Array.isArray(rOid.data?.data) ? rOid.data.data : [];
-        pushAll(arr);
-      }
-    }
-
-    // (2) 日本語部分一致は autocomplete で候補を拾って oracle_id 解決
-    if (isJaInput) {
-      const norm = normalizeJaNameForResolve(s);
-      // 2文字未満はノイズが多いので、autocompleteは走らせない
-      if (norm.length >= 2 && merged.size === 0) {
-        const sug = await fetchAutocomplete(norm);
-
-        // 上位 N 件だけ試す（多すぎると遅い）
-        const MAX_TRY = 6;
-
-        for (const name of sug.slice(0, MAX_TRY)) {
-          const oid2 = await resolveJapaneseToOracleId(name);
-          if (!oid2) continue;
-
-          const rOid2 = await fetchSearch(`oracleid:${oid2}`);
-          const arr2 = Array.isArray(rOid2.data?.data) ? rOid2.data.data : [];
-          pushAll(arr2);
-        }
-      }
-    }
-
-    // (3) preferJa: lang:ja search（日本語入力でも英語入力でも「日本語版を拾う」目的で使う）
-    // ただし日本語入力でこれが空でも、最後に英語fallbackはしない（関係ないカードが混ざるため）
-    let jaHitCount = 0;
-    if (preferJa) {
-      const rJa = await fetchSearch(`lang:ja ${s}`);
-      const jaArr = Array.isArray(rJa.data?.data) ? rJa.data.data : [];
-      jaHitCount = jaArr.length;
-      pushAll(jaArr);
-
-      // (4) Furigana regex fallback（日本語入力で、lang:ja が空のとき）
-      if (jaHitCount === 0 && isJaInput && merged.size === 0) {
-        const rx = buildFuriganaRegex(s);
-        if (rx) {
-          const rRx = await fetchSearch(`lang:ja name:/${rx}/`);
-          const rxArr = Array.isArray(rRx.data?.data) ? rRx.data.data : [];
-          pushAll(rxArr);
-
-          if (merged.size === 0) {
-            const rxLoose = rx.replace(/\\s\*/g, ".*?");
-            const rRx2 = await fetchSearch(`lang:ja name:/${rxLoose}/`);
-            const rxArr2 = Array.isArray(rRx2.data?.data) ? rRx2.data.data : [];
-            pushAll(rxArr2);
-          }
-        }
-      }
-    }
-
-    // (5) Any language fallback
-    // 英語入力のみ実行（日本語入力でやると関係ないカードが混ざる）
-    if (!isJaInput) {
-      const rAny = await fetchSearch(s);
-      pushAll(Array.isArray(rAny.data?.data) ? rAny.data.data : []);
-    }
-
-    if (merged.size > 0) {
-      let rawCards = Array.from(merged.values());
-      rawCards = applyCollapseSame(rawCards, s, preferJa, collapseSame);
-
-      let cards = rawCards.map(normalizeCard);
-      cards = sortResults(cards, s, preferJa);
-
-      state.results = cards;
-      renderResults();
-      setStatus(`ヒット: ${cards.length}件`);
-      return;
-    }
-
-    state.results = [];
-    renderResults();
-    setStatus("見つかりませんでした");
-  }
-
-    const preferJa = $("preferJa").checked;
-    const collapseSame = $("collapseSame").checked;
-
-    setStatus("検索中…");
-
-    // Advanced query: keep as-is (optionally try lang:ja first)
-    if (isAdvancedQuery(s)) {
-      const queries =
-        preferJa && looksJapanese(s) && !/(^|\s)lang:/i.test(s)
-          ? [`lang:ja ${s}`, s]
-          : [s];
-
-      for (const q of queries) {
-        const r = await fetchSearch(q);
-        const arr = Array.isArray(r.data?.data) ? r.data.data : [];
-        if (arr.length > 0) {
-          let rawCards = arr;
-          rawCards = applyCollapseSame(rawCards, s, preferJa, collapseSame);
-          let cards = rawCards.map(normalizeCard);
-          cards = sortResults(cards, s, preferJa);
-
-          state.results = cards;
-          renderResults();
-          setStatus(`ヒット: ${cards.length}件`);
-          return;
-        }
-      }
-
-      state.results = [];
-      renderResults();
-      setStatus("見つかりませんでした");
-      return;
-    }
-
-    // Normal:
-    // 1) Japanese input -> resolve /cards/named?lang=ja => oracle_id, then search oracleid:
-    // 2) preferJa lang:ja search
-    // 3) furigana regex fallback
-    // 4) any language fallback
-    const merged = new Map();
-    const pushAll = (arr) => {
-      for (const c of arr) merged.set(c.id, c);
-    };
-
-    // (1) oracle_id resolver
-    if (looksJapanese(s)) {
-      const oid = await resolveJapaneseToOracleId(s);
-      if (oid) {
-        const rOid = await fetchSearch(`oracleid:${oid}`);
-        const arr = Array.isArray(rOid.data?.data) ? rOid.data.data : [];
-        pushAll(arr);
-      }
-    }
-
-    let jaHitCount = 0;
-
-    // (2) prefer lang:ja search
-    if (preferJa) {
-      const rJa = await fetchSearch(`lang:ja ${s}`);
-      const jaArr = Array.isArray(rJa.data?.data) ? rJa.data.data : [];
-      jaHitCount = jaArr.length;
-      pushAll(jaArr);
-
-      // (3) furigana regex fallback: only when japanese query and no hit
-      if (jaHitCount === 0 && looksJapanese(s)) {
-        const rx = buildFuriganaRegex(s);
-        if (rx) {
-          const rRx = await fetchSearch(`lang:ja name:/${rx}/`);
-          const rxArr = Array.isArray(rRx.data?.data) ? rRx.data.data : [];
-          pushAll(rxArr);
-
-          if (merged.size === 0) {
-            const rxLoose = rx.replace(/\\s\*/g, ".*?");
-            const rRx2 = await fetchSearch(`lang:ja name:/${rxLoose}/`);
-            const rxArr2 = Array.isArray(rRx2.data?.data) ? rRx2.data.data : [];
-            pushAll(rxArr2);
-          }
-        }
-      }
-    }
-
-    // (4) Any language fallback
-    const rAny = await fetchSearch(s);
-    pushAll(Array.isArray(rAny.data?.data) ? rAny.data.data : []);
-
-    if (merged.size > 0) {
-      let rawCards = Array.from(merged.values());
-      rawCards = applyCollapseSame(rawCards, s, preferJa, collapseSame);
-
-      let cards = rawCards.map(normalizeCard);
-      cards = sortResults(cards, s, preferJa);
-
-      state.results = cards;
-      renderResults();
-      setStatus(`ヒット: ${cards.length}件`);
-      return;
-    }
-
-    state.results = [];
-    renderResults();
-    setStatus("見つかりませんでした");
-  }
-
-  // =========================
-  // Deck sort helpers
-  // =========================
-  const TYPE_ORDER = ["Land", "Creature", "Instant", "Sorcery", "Artifact", "Enchantment", "Planeswalker"];
-
-  function normalizeForSortName(s) {
-    return String(s || "")
-      .replace(/\s+/g, " ")
-      .replace(/[（(][^）)]*[）)]/g, "") // 括弧内（ふりがな等）を除去
-      .replace(/[・･]/g, "")
-      .trim();
-  }
-
-  function primaryTypeOrder(typeLine) {
-    const left = String(typeLine || "").split("—")[0] || "";
-    const tokens = left.split(/\s+/).filter(Boolean);
-
-    for (let i = 0; i < TYPE_ORDER.length; i++) {
-      if (tokens.includes(TYPE_ORDER[i])) return i;
-    }
-    return TYPE_ORDER.length;
   }
 
   // =========================
@@ -1161,4 +1066,3 @@
   setSearchView(searchView);
   syncViewFromHash();
 })();
-
