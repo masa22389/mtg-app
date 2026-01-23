@@ -204,6 +204,19 @@
     return { ok: res.ok, data, status: res.status };
   }
 
+     // NEW: Autocomplete (multilingual)
+  async function fetchAutocomplete(q) {
+    const url = new URL("https://api.scryfall.com/cards/autocomplete");
+    url.searchParams.set("q", q);
+    url.searchParams.set("include_multilingual", "true");
+    url.searchParams.set("include_extras", "true");
+
+    const res = await fetch(url.toString(), { headers: { Accept: "application/json" } });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return [];
+    return Array.isArray(data?.data) ? data.data : [];
+  }
+
   // NEW: /cards/named で日本語印刷名 → oracle_id 解決（printed_name検索の弱さを回避）
   function normalizeJaNameForResolve(s) {
     return String(s || "")
@@ -342,7 +355,7 @@
     return parts.join("\\s*");
   }
 
-  async function searchCards(rawInput) {
+    async function searchCards(rawInput) {
     const s = rawInput.trim();
     if (!s) {
       state.results = [];
@@ -350,6 +363,133 @@
       setStatus("検索ワードを入力してください");
       return;
     }
+
+    const preferJa = $("preferJa").checked;
+    const collapseSame = $("collapseSame").checked;
+
+    setStatus("検索中…");
+
+    // Advanced query: keep as-is (optionally try lang:ja first)
+    if (isAdvancedQuery(s)) {
+      const queries =
+        preferJa && looksJapanese(s) && !/(^|\s)lang:/i.test(s)
+          ? [`lang:ja ${s}`, s]
+          : [s];
+
+      for (const q of queries) {
+        const r = await fetchSearch(q);
+        const arr = Array.isArray(r.data?.data) ? r.data.data : [];
+        if (arr.length > 0) {
+          let rawCards = arr;
+          rawCards = applyCollapseSame(rawCards, s, preferJa, collapseSame);
+          let cards = rawCards.map(normalizeCard);
+          cards = sortResults(cards, s, preferJa);
+
+          state.results = cards;
+          renderResults();
+          setStatus(`ヒット: ${cards.length}件`);
+          return;
+        }
+      }
+
+      state.results = [];
+      renderResults();
+      setStatus("見つかりませんでした");
+      return;
+    }
+
+    // Normal:
+    // 日本語は /cards/search の部分一致が弱く、英語fallbackで関係ないカードが混ざりがち。
+    // => 日本語入力時は oracle_id 解決（named/autocomplete）を優先し、英語fallback(search s)をしない
+    const merged = new Map();
+    const pushAll = (arr) => {
+      for (const c of arr) merged.set(c.id, c);
+    };
+
+    const isJaInput = looksJapanese(s);
+
+    // (1) 日本語フルネーム寄りなら /cards/named?lang=ja で oracle_id 解決
+    if (isJaInput) {
+      const oid = await resolveJapaneseToOracleId(s);
+      if (oid) {
+        const rOid = await fetchSearch(`oracleid:${oid}`);
+        const arr = Array.isArray(rOid.data?.data) ? rOid.data.data : [];
+        pushAll(arr);
+      }
+    }
+
+    // (2) 日本語部分一致は autocomplete で候補を拾って oracle_id 解決
+    if (isJaInput) {
+      const norm = normalizeJaNameForResolve(s);
+      // 2文字未満はノイズが多いので、autocompleteは走らせない
+      if (norm.length >= 2 && merged.size === 0) {
+        const sug = await fetchAutocomplete(norm);
+
+        // 上位 N 件だけ試す（多すぎると遅い）
+        const MAX_TRY = 6;
+
+        for (const name of sug.slice(0, MAX_TRY)) {
+          const oid2 = await resolveJapaneseToOracleId(name);
+          if (!oid2) continue;
+
+          const rOid2 = await fetchSearch(`oracleid:${oid2}`);
+          const arr2 = Array.isArray(rOid2.data?.data) ? rOid2.data.data : [];
+          pushAll(arr2);
+        }
+      }
+    }
+
+    // (3) preferJa: lang:ja search（日本語入力でも英語入力でも「日本語版を拾う」目的で使う）
+    // ただし日本語入力でこれが空でも、最後に英語fallbackはしない（関係ないカードが混ざるため）
+    let jaHitCount = 0;
+    if (preferJa) {
+      const rJa = await fetchSearch(`lang:ja ${s}`);
+      const jaArr = Array.isArray(rJa.data?.data) ? rJa.data.data : [];
+      jaHitCount = jaArr.length;
+      pushAll(jaArr);
+
+      // (4) Furigana regex fallback（日本語入力で、lang:ja が空のとき）
+      if (jaHitCount === 0 && isJaInput && merged.size === 0) {
+        const rx = buildFuriganaRegex(s);
+        if (rx) {
+          const rRx = await fetchSearch(`lang:ja name:/${rx}/`);
+          const rxArr = Array.isArray(rRx.data?.data) ? rRx.data.data : [];
+          pushAll(rxArr);
+
+          if (merged.size === 0) {
+            const rxLoose = rx.replace(/\\s\*/g, ".*?");
+            const rRx2 = await fetchSearch(`lang:ja name:/${rxLoose}/`);
+            const rxArr2 = Array.isArray(rRx2.data?.data) ? rRx2.data.data : [];
+            pushAll(rxArr2);
+          }
+        }
+      }
+    }
+
+    // (5) Any language fallback
+    // 英語入力のみ実行（日本語入力でやると関係ないカードが混ざる）
+    if (!isJaInput) {
+      const rAny = await fetchSearch(s);
+      pushAll(Array.isArray(rAny.data?.data) ? rAny.data.data : []);
+    }
+
+    if (merged.size > 0) {
+      let rawCards = Array.from(merged.values());
+      rawCards = applyCollapseSame(rawCards, s, preferJa, collapseSame);
+
+      let cards = rawCards.map(normalizeCard);
+      cards = sortResults(cards, s, preferJa);
+
+      state.results = cards;
+      renderResults();
+      setStatus(`ヒット: ${cards.length}件`);
+      return;
+    }
+
+    state.results = [];
+    renderResults();
+    setStatus("見つかりませんでした");
+  }
 
     const preferJa = $("preferJa").checked;
     const collapseSame = $("collapseSame").checked;
@@ -1021,3 +1161,4 @@
   setSearchView(searchView);
   syncViewFromHash();
 })();
+
