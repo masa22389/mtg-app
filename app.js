@@ -1,26 +1,30 @@
+/* app.js - MTG Deck Builder (Scryfall)
+   - Search (grid/list)
+   - Prefer Japanese printing
+   - Collapse same (latest printing)
+   - Deck builder (Main/Side) with modal ops
+   - Fix: Furigana-in-parentheses Japanese name search (（） and () + spaces)
+*/
+
 (() => {
   "use strict";
+
   const $ = (id) => document.getElementById(id);
 
   // ===== Version =====
-  const APP_VERSION = "0.0.4";
+  const APP_VERSION = "0.0.3";
 
   // ===== Search view mode (grid/list) =====
   const SEARCH_VIEW_KEY = "mtg_search_view";
   let searchView = localStorage.getItem(SEARCH_VIEW_KEY) || "grid";
 
-  // ===== Favorites =====
-  const FAV_KEY = "mtg_favorites_v1";          // favorites map
-  const FAV_ONLY_KEY = "mtg_favorites_only";   // "1" or "0"
-  let favOnly = (localStorage.getItem(FAV_ONLY_KEY) === "1");
-
-  // ===== Storage keys (decks) =====
+  // ===== Storage keys (backward compatible) =====
   const STORE_KEYS = [
     "mtg_deck_store_tabs_v2",
     "mtg_deck_store_v2",
     "mtg_deck_store_v1",
     "mtg_deck_store",
-    "mtg_deck_store_v0"
+    "mtg_deck_store_v0",
   ];
   const STORE_KEY = STORE_KEYS[0]; // always save into tabs_v2
 
@@ -29,11 +33,13 @@
     deck: newEmptyDeck(""),
     currentDeckName: "",
     openCard: null, // { board:"main"|"side", id:"..." }
-    boardCollapsed: { main:false, side:false }
+    boardCollapsed: { main: false, side: false },
   };
 
-  // ===== View switching =====
-  function setView(view){
+  // =========================
+  // View switching
+  // =========================
+  function setView(view) {
     const isSearch = view === "search";
     $("viewSearch").classList.toggle("active", isSearch);
     $("viewDeck").classList.toggle("active", !isSearch);
@@ -46,21 +52,29 @@
     const nextHash = isSearch ? "#search" : "#deck";
     if (location.hash !== nextHash) history.pushState(null, "", nextHash);
   }
-  function syncViewFromHash(){
+
+  function syncViewFromHash() {
     const h = (location.hash || "").toLowerCase();
     if (h === "#deck") setView("deck");
     else setView("search");
   }
 
-  function setStatus(msg){
+  $("tabSearch").onclick = () => setView("search");
+  $("tabDeck").onclick = () => setView("deck");
+  window.addEventListener("popstate", syncViewFromHash);
+  window.addEventListener("hashchange", syncViewFromHash);
+
+  function setStatus(msg) {
     $("status").textContent = msg;
     const ds = $("deckStatus");
     if (ds) ds.textContent = msg;
   }
 
-  // ===== Search view toggle (grid/list) =====
-  function setSearchView(mode){
-    searchView = (mode === "list") ? "list" : "grid";
+  // =========================
+  // Search view toggle
+  // =========================
+  function setSearchView(mode) {
+    searchView = mode === "list" ? "list" : "grid";
     localStorage.setItem(SEARCH_VIEW_KEY, searchView);
 
     const isGrid = searchView === "grid";
@@ -68,42 +82,43 @@
     $("resultsList").style.display = isGrid ? "none" : "flex";
 
     $("viewMode").value = searchView;
-    $("viewMode").options[0].textContent = "表示（グリッド）";
-    $("viewMode").options[1].textContent = "表示（リスト）";
   }
 
-  // ===== Storage (Decks) =====
-  function loadStore(){
-    for (const key of STORE_KEYS){
-      try{
+  // =========================
+  // Storage
+  // =========================
+  function loadStore() {
+    for (const key of STORE_KEYS) {
+      try {
         const raw = localStorage.getItem(key);
         if (!raw) continue;
         const obj = JSON.parse(raw);
-        if (obj && typeof obj === "object" && obj.decks && typeof obj.decks === "object"){
-          if (key !== STORE_KEY){
-            localStorage.setItem(STORE_KEY, JSON.stringify(obj));
-          }
+        if (obj && typeof obj === "object" && obj.decks && typeof obj.decks === "object") {
+          if (key !== STORE_KEY) localStorage.setItem(STORE_KEY, JSON.stringify(obj));
           if (!obj.version) obj.version = 2;
           return obj;
         }
-      }catch{}
+      } catch {}
     }
-    return { version:2, decks:{} };
+    return { version: 2, decks: {} };
   }
-  function saveStore(store){ localStorage.setItem(STORE_KEY, JSON.stringify(store)); }
 
-  function refreshDeckSelect(){
+  function saveStore(store) {
+    localStorage.setItem(STORE_KEY, JSON.stringify(store));
+  }
+
+  function refreshDeckSelect() {
     const store = loadStore();
     const sel = $("deckSelect");
     sel.innerHTML = "";
-    const names = Object.keys(store.decks).sort((a,b)=>a.localeCompare(b));
+    const names = Object.keys(store.decks).sort((a, b) => a.localeCompare(b));
 
     const opt0 = document.createElement("option");
     opt0.value = "";
     opt0.textContent = "保存デッキを選択…";
     sel.appendChild(opt0);
 
-    for (const n of names){
+    for (const n of names) {
       const opt = document.createElement("option");
       opt.value = n;
       opt.textContent = n;
@@ -111,61 +126,32 @@
     }
   }
 
-  function newEmptyDeck(name){
-    return { name, updatedAt: new Date().toISOString(), main:{}, side:{} };
+  function newEmptyDeck(name) {
+    return { name, updatedAt: new Date().toISOString(), main: {}, side: {} };
   }
 
-  function setCurrentDeckName(name){
+  function setCurrentDeckName(name) {
     state.currentDeckName = name || "";
     $("currentDeckName").textContent = state.currentDeckName ? state.currentDeckName : "（未保存）";
   }
 
-  // ===== Favorites storage =====
-  function loadFavs(){
-    try{
-      const raw = localStorage.getItem(FAV_KEY);
-      if (!raw) return {};
-      const obj = JSON.parse(raw);
-      if (obj && typeof obj === "object") return obj;
-    }catch{}
-    return {};
-  }
-  function saveFavs(obj){
-    localStorage.setItem(FAV_KEY, JSON.stringify(obj));
+  // =========================
+  // Scryfall helpers
+  // =========================
+  function looksJapanese(s) {
+    return /[\u3040-\u30FF\u4E00-\u9FFF]/.test(s);
   }
 
-  // key: oracle_id優先。無ければid
-  function favKey(card){
-    return card.oracle_id || card.id;
+  function isAdvancedQuery(s) {
+    // If they typed "t:" "o:" etc or quotes/colon etc treat as advanced
+    return (
+      /(^|\s)(t:|c:|o:|oracle:|f:|format:|lang:|is:|set:|cn:|rarity:|type:|pow|tou|cmc)\b/i.test(
+        s
+      ) || /[:"]/g.test(s)
+    );
   }
 
-  function isFav(card){
-    const favs = loadFavs();
-    return !!favs[favKey(card)];
-  }
-
-  function toggleFav(card){
-    const favs = loadFavs();
-    const key = favKey(card);
-    if (favs[key]) delete favs[key];
-    else favs[key] = card; // normalized cardを保存（表示・復元が楽）
-    saveFavs(favs);
-  }
-
-  function setFavOnly(next){
-    favOnly = !!next;
-    localStorage.setItem(FAV_ONLY_KEY, favOnly ? "1" : "0");
-    $("btnFavOnly").classList.toggle("on", favOnly);
-    $("btnFavOnly").textContent = favOnly ? "★ お気に入り中" : "★ お気に入り";
-  }
-
-  // ===== Scryfall helpers =====
-  function looksJapanese(s){ return /[\u3040-\u30FF\u4E00-\u9FFF]/.test(s); }
-  function isAdvancedQuery(s){
-    return /(^|\s)(t:|c:|o:|oracle:|f:|format:|lang:|is:|set:|cn:|rarity:|type:|pow|tou|cmc)\b/i.test(s) || /[:"]/g.test(s);
-  }
-
-  function getCardImage(card){
+  function getCardImage(card) {
     if (card.image_uris?.normal) return card.image_uris.normal;
     if (Array.isArray(card.card_faces)) {
       for (const f of card.card_faces) if (f.image_uris?.normal) return f.image_uris.normal;
@@ -173,18 +159,20 @@
     return "";
   }
 
-  function getDisplayName(card){
+  // 日本語があるときは printed_name を表示に使う
+  function getDisplayName(card) {
     return card.printed_name || card.name || "";
   }
-  function getDisplayType(card){
+
+  function getDisplayType(card) {
     return card.printed_type_line || card.type_line || "";
   }
 
-  function normalizeCard(card){
+  function normalizeCard(card) {
     return {
       id: card.id,
       oracle_id: card.oracle_id,
-      name: getDisplayName(card),      // 日本語あれば日本語（printed_name）
+      name: getDisplayName(card), // 表示名（日本語優先）
       en_name: card.name || "",
       set: (card.set || "").toUpperCase(),
       collector: card.collector_number || "",
@@ -193,59 +181,75 @@
       scryfall_uri: card.scryfall_uri,
       image: getCardImage(card),
       cmc: typeof card.cmc === "number" ? card.cmc : Number(card.cmc || 0),
-      type_line: getDisplayType(card)
+      type_line: getDisplayType(card),
     };
   }
 
-  async function fetchSearch(q){
+  async function fetchSearch(q) {
     const url = new URL("https://api.scryfall.com/cards/search");
     url.searchParams.set("q", q);
     url.searchParams.set("unique", "prints");
     url.searchParams.set("order", $("order").value);
 
-    const res = await fetch(url.toString(), { headers:{ "Accept":"application/json" } });
-    const data = await res.json().catch(()=>({}));
+    const res = await fetch(url.toString(), { headers: { Accept: "application/json" } });
+    const data = await res.json().catch(() => ({}));
     return { ok: res.ok, data, status: res.status };
   }
 
-  function dateKey(d){ return (d && typeof d === "string") ? d : ""; }
+  function dateKey(d) {
+    return d && typeof d === "string" ? d : "";
+  }
 
-  function exactRank(name, query){
-    const a = (name||"").trim().toLowerCase();
-    const q = (query||"").trim().toLowerCase();
+  function exactRank(name, query) {
+    const a = (name || "").trim().toLowerCase();
+    const q = (query || "").trim().toLowerCase();
     return a === q ? 0 : 1;
   }
 
-  function pickBestPrint(cards, query, preferJa){
+  function pickBestPrint(cards, query, preferJa) {
     let best = null;
-    for (const c of cards){
-      if (!best){ best = c; continue; }
-      if (preferJa){
-        const aj = (c.lang === "ja") ? 0 : 1;
-        const bj = (best.lang === "ja") ? 0 : 1;
-        if (aj !== bj){ if (aj < bj) best = c; continue; }
+    for (const c of cards) {
+      if (!best) {
+        best = c;
+        continue;
       }
+
+      if (preferJa) {
+        const aj = c.lang === "ja" ? 0 : 1;
+        const bj = best.lang === "ja" ? 0 : 1;
+        if (aj !== bj) {
+          if (aj < bj) best = c;
+          continue;
+        }
+      }
+
       const ad = dateKey(c.released_at);
       const bd = dateKey(best.released_at);
-      if (ad !== bd){ if (ad > bd) best = c; continue; }
+      if (ad !== bd) {
+        if (ad > bd) best = c;
+        continue;
+      }
 
-      const aName = (c.printed_name || c.name || "");
-      const bName = (best.printed_name || best.name || "");
+      const aName = c.printed_name || c.name || "";
+      const bName = best.printed_name || best.name || "";
       const ae = exactRank(aName, query);
       const be = exactRank(bName, query);
-      if (ae !== be){ if (ae < be) best = c; continue; }
+      if (ae !== be) {
+        if (ae < be) best = c;
+        continue;
+      }
 
-      const aKey = ((c.set||"") + "|" + (c.collector_number||"") + "|" + (c.id||"")).toLowerCase();
-      const bKey = ((best.set||"") + "|" + (best.collector_number||"") + "|" + (best.id||"")).toLowerCase();
+      const aKey = ((c.set || "") + "|" + (c.collector_number || "") + "|" + (c.id || "")).toLowerCase();
+      const bKey = ((best.set || "") + "|" + (best.collector_number || "") + "|" + (best.id || "")).toLowerCase();
       if (aKey > bKey) best = c;
     }
     return best;
   }
 
-  function applyCollapseSame(rawCards, query, preferJa, collapseSame){
+  function applyCollapseSame(rawCards, query, preferJa, collapseSame) {
     if (!collapseSame) return rawCards;
     const groups = new Map();
-    for (const c of rawCards){
+    for (const c of rawCards) {
       const k = c.oracle_id || c.id;
       if (!groups.has(k)) groups.set(k, []);
       groups.get(k).push(c);
@@ -255,68 +259,66 @@
     return picked;
   }
 
-  function sortResults(cards, query, preferJa){
-    const qLower = (query||"").trim().toLowerCase();
-    cards.sort((a,b)=>{
-      const aname = (a.name||"").toLowerCase();
-      const bname = (b.name||"").toLowerCase();
+  function sortResults(cards, query, preferJa) {
+    const qLower = (query || "").trim().toLowerCase();
+    cards.sort((a, b) => {
+      const aname = (a.name || "").toLowerCase();
+      const bname = (b.name || "").toLowerCase();
+
       const ae = aname === qLower ? 0 : 1;
       const be = bname === qLower ? 0 : 1;
       if (ae !== be) return ae - be;
 
-      if (preferJa){
-        const aj = (a.lang === "ja") ? 0 : 1;
-        const bj = (b.lang === "ja") ? 0 : 1;
+      if (preferJa) {
+        const aj = a.lang === "ja" ? 0 : 1;
+        const bj = b.lang === "ja" ? 0 : 1;
         if (aj !== bj) return aj - bj;
       }
+
       if (aname !== bname) return aname.localeCompare(bname);
 
       const ad = dateKey(a.released_at);
       const bd = dateKey(b.released_at);
       if (ad !== bd) return bd.localeCompare(ad);
 
-      return (a.set||"").localeCompare(b.set||"");
+      return (a.set || "").localeCompare(b.set || "");
     });
     return cards;
   }
 
-  // ===== Furigana fallback (括弧ふりがな対策) =====
-  function escapeRegex(s){
+  // =========================
+  // Furigana-in-parentheses fix
+  // =========================
+  function escapeRegex(s) {
     return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   }
-  function buildFuriganaRegex(input){
-    // 入力文字の各文字の後ろに ( ... ) が挟まってもOKにする
-    const chars = Array.from(input.trim()).filter(ch => ch !== " " && ch !== "　");
-    const parts = chars.map(ch => `${escapeRegex(ch)}(?:\\([^)]*\\))?`);
+
+  // Scryfallの表示: 量（りょう）子（し）の謎（なぞ）かけ屋（や）
+  // - 全角/半角括弧 両対応
+  // - 括弧前後に空白が入ってもOK
+  // - 文字間に空白が入ってもOK
+  function buildFuriganaRegex(input) {
+    const trimmed = String(input || "").trim();
+    const chars = Array.from(trimmed).filter((ch) => ch !== " " && ch !== "　");
+    if (chars.length === 0) return "";
+
+    // bracket group: ( ... ) or （ ... ）
+    const BR = "(?:\\(|（)[^\\)）]*(?:\\)|）)";
+
+    // each char: <char> [ optional spaces + optional bracket group ]
+    // and allow spaces between tokens
+    const parts = chars.map((ch) => {
+      const c = escapeRegex(ch);
+      return `${c}(?:\\s*${BR})?`;
+    });
+
+    // allow whitespace between each token too
     return parts.join("\\s*");
   }
 
-  // ===== Favorites-only filtering =====
-  function filterFavsByQuery(favsArr, q){
-    const s = (q || "").trim();
-    if (!s) return favsArr;
-    const low = s.toLowerCase();
-    return favsArr.filter(c => {
-      return (c.name||"").toLowerCase().includes(low) || (c.en_name||"").toLowerCase().includes(low);
-    });
-  }
-
-  // ===== Search main =====
-  async function searchCards(rawInput){
-    const s = (rawInput || "").trim();
-
-    // ★お気に入りモード：Scryfallに行かず、保存済みお気に入りだけを表示
-    if (favOnly){
-      const favs = loadFavs();
-      let arr = Object.values(favs);
-      arr = filterFavsByQuery(arr, s);
-      state.results = arr;
-      renderResults();
-      setStatus(`お気に入り: ${arr.length}件`);
-      return;
-    }
-
-    if (!s){
+  async function searchCards(rawInput) {
+    const s = rawInput.trim();
+    if (!s) {
       state.results = [];
       renderResults();
       setStatus("検索ワードを入力してください");
@@ -328,20 +330,22 @@
 
     setStatus("検索中…");
 
-    // Advanced query
-    if (isAdvancedQuery(s)){
-      const queries = (preferJa && looksJapanese(s) && !/(^|\s)lang:/i.test(s))
-        ? [`lang:ja ${s}`, s]
-        : [s];
+    // Advanced query: keep as-is (optionally try lang:ja first)
+    if (isAdvancedQuery(s)) {
+      const queries =
+        preferJa && looksJapanese(s) && !/(^|\s)lang:/i.test(s)
+          ? [`lang:ja ${s}`, s]
+          : [s];
 
-      for (const q of queries){
+      for (const q of queries) {
         const r = await fetchSearch(q);
         const arr = Array.isArray(r.data?.data) ? r.data.data : [];
-        if (arr.length > 0){
+        if (arr.length > 0) {
           let rawCards = arr;
           rawCards = applyCollapseSame(rawCards, s, preferJa, collapseSame);
           let cards = rawCards.map(normalizeCard);
           cards = sortResults(cards, s, preferJa);
+
           state.results = cards;
           renderResults();
           setStatus(`ヒット: ${cards.length}件`);
@@ -355,30 +359,45 @@
       return;
     }
 
-    // Normal query: prefer ja + fallback any
+    // Normal: prefer ja + furigana-regex fallback + any language fallback
     const merged = new Map();
-    const pushAll = (arr)=>{ for (const c of arr) merged.set(c.id, c); };
+    const pushAll = (arr) => {
+      for (const c of arr) merged.set(c.id, c);
+    };
 
     let jaHitCount = 0;
-    if (preferJa){
+
+    if (preferJa) {
       const rJa = await fetchSearch(`lang:ja ${s}`);
       const jaArr = Array.isArray(rJa.data?.data) ? rJa.data.data : [];
       jaHitCount = jaArr.length;
       pushAll(jaArr);
 
-      // Furigana fallback only if no hit
-      if (jaHitCount === 0 && looksJapanese(s)){
+      // Furigana fallback: only when japanese query and no hit
+      if (jaHitCount === 0 && looksJapanese(s)) {
         const rx = buildFuriganaRegex(s);
-        const rRx = await fetchSearch(`lang:ja name:/${rx}/`);
-        const rxArr = Array.isArray(rRx.data?.data) ? rRx.data.data : [];
-        pushAll(rxArr);
+        if (rx) {
+          // name:/.../ は printed_name にも効くケースが多い（効かない場合もあるが現実的に最善）
+          const rRx = await fetchSearch(`lang:ja name:/${rx}/`);
+          const rxArr = Array.isArray(rRx.data?.data) ? rRx.data.data : [];
+          pushAll(rxArr);
+
+          // さらに念のため: printed_nameのようにスペース混入がある場合に備え、ゆるくもう一段
+          if (merged.size === 0) {
+            const rxLoose = rx.replace(/\\s\*/g, ".*?");
+            const rRx2 = await fetchSearch(`lang:ja name:/${rxLoose}/`);
+            const rxArr2 = Array.isArray(rRx2.data?.data) ? rRx2.data.data : [];
+            pushAll(rxArr2);
+          }
+        }
       }
     }
 
+    // Any language fallback
     const rAny = await fetchSearch(s);
     pushAll(Array.isArray(rAny.data?.data) ? rAny.data.data : []);
 
-    if (merged.size > 0){
+    if (merged.size > 0) {
       let rawCards = Array.from(merged.values());
       rawCards = applyCollapseSame(rawCards, s, preferJa, collapseSame);
 
@@ -396,49 +415,53 @@
     setStatus("見つかりませんでした");
   }
 
-  // ===== Deck =====
-  function boardObj(board){ return board === "side" ? state.deck.side : state.deck.main; }
-
-  function countBoard(obj){
-    return Object.values(obj).reduce((sum,x)=>sum+(x.qty||0),0);
+  // =========================
+  // Deck (Main/Side)
+  // =========================
+  function boardObj(board) {
+    return board === "side" ? state.deck.side : state.deck.main;
   }
 
-  function listEntries(obj){
+  function countBoard(obj) {
+    return Object.values(obj).reduce((sum, x) => sum + (x.qty || 0), 0);
+  }
+
+  function listEntries(obj) {
     const arr = Object.values(obj);
     const mode = $("sortDeck")?.value || "name";
-    arr.sort((a,b)=>{
-      if (mode === "cmc"){
+    arr.sort((a, b) => {
+      if (mode === "cmc") {
         const ac = Number(a.cmc ?? 0);
         const bc = Number(b.cmc ?? 0);
         if (ac !== bc) return ac - bc;
-      } else if (mode === "type"){
-        const at = (a.type_line||"");
-        const bt = (b.type_line||"");
+      } else if (mode === "type") {
+        const at = a.type_line || "";
+        const bt = b.type_line || "";
         if (at !== bt) return at.localeCompare(bt);
       }
-      return (a.name||"").localeCompare(b.name||"");
+      return (a.name || "").localeCompare(b.name || "");
     });
     return arr;
   }
 
-  function addToBoard(board, card, delta=1){
+  function addToBoard(board, card, delta = 1) {
     const obj = boardObj(board);
     const cur = obj[card.id];
     if (cur) cur.qty += delta;
     else obj[card.id] = { ...card, qty: delta };
+
     state.deck.updatedAt = new Date().toISOString();
     renderDeck();
   }
 
-  // keepZero=true のときは 0枚でも消さない（モーダルを閉じないため）
-  function changeQty(board, cardId, delta, keepZero=false){
+  function changeQty(board, cardId, delta, keepZero = false) {
     const obj = boardObj(board);
     const it = obj[cardId];
     if (!it) return;
 
     it.qty += delta;
 
-    if (it.qty <= 0){
+    if (it.qty <= 0) {
       if (keepZero) it.qty = 0;
       else delete obj[cardId];
     }
@@ -446,18 +469,18 @@
     state.deck.updatedAt = new Date().toISOString();
     renderDeck();
 
-    if (state.openCard && state.openCard.board === board && state.openCard.id === cardId){
+    if (state.openCard && state.openCard.board === board && state.openCard.id === cardId) {
       renderCardModal();
     }
   }
 
-  function moveCard(from, to, cardId){
+  function moveCard(from, to, cardId) {
     if (from === to) return;
     const a = boardObj(from);
     const b = boardObj(to);
     const it = a[cardId];
     if (!it) return;
-    if ((it.qty||0) <= 0) return;
+    if ((it.qty || 0) <= 0) return;
 
     if (b[cardId]) b[cardId].qty += it.qty;
     else b[cardId] = it;
@@ -466,22 +489,22 @@
     state.deck.updatedAt = new Date().toISOString();
     renderDeck();
 
-    if (state.openCard && state.openCard.id === cardId){
+    if (state.openCard && state.openCard.id === cardId) {
       state.openCard.board = to;
       renderCardModal();
     }
   }
 
-  function cleanupZeros(){
-    for (const b of ["main","side"]){
+  function cleanupZeros() {
+    for (const b of ["main", "side"]) {
       const obj = boardObj(b);
-      for (const id of Object.keys(obj)){
+      for (const id of Object.keys(obj)) {
         if ((obj[id]?.qty ?? 0) <= 0) delete obj[id];
       }
     }
   }
 
-  function clearBoards(){
+  function clearBoards() {
     state.deck.main = {};
     state.deck.side = {};
     state.deck.updatedAt = new Date().toISOString();
@@ -490,15 +513,17 @@
     setStatus("Main/Side を全消ししました");
   }
 
-  // ===== Render =====
-  function renderResults(){
+  // =========================
+  // Render Search Results
+  // =========================
+  function renderResults() {
     const grid = $("resultsGrid");
     const list = $("resultsList");
     grid.innerHTML = "";
     list.innerHTML = "";
 
-    for (const c of state.results){
-      // ---- grid ----
+    for (const c of state.results) {
+      // ---- grid card ----
       const wrap = document.createElement("div");
       wrap.className = "card";
 
@@ -506,7 +531,9 @@
       img.loading = "lazy";
       img.alt = c.name;
       img.src = c.image || "";
-      img.onerror = () => { img.style.display = "none"; };
+      img.onerror = () => {
+        img.style.display = "none";
+      };
 
       const meta = document.createElement("div");
       meta.className = "meta";
@@ -523,35 +550,23 @@
       actions.className = "actions";
 
       const btnMain = document.createElement("button");
-      btnMain.textContent = "Main";
+      btnMain.textContent = "Mainに追加";
       btnMain.onclick = () => addToBoard("main", c, 1);
 
       const btnSide = document.createElement("button");
-      btnSide.textContent = "Side";
+      btnSide.textContent = "Sideに追加";
       btnSide.onclick = () => addToBoard("side", c, 1);
 
       const btnOpen = document.createElement("button");
       btnOpen.textContent = "詳細";
       btnOpen.onclick = () => window.open(c.scryfall_uri, "_blank", "noopener,noreferrer");
 
-      const fav = document.createElement("button");
-      fav.className = "favBtn";
-      const on = isFav(c);
-      fav.classList.toggle("on", on);
-      fav.textContent = on ? "★" : "☆";
-      fav.title = on ? "お気に入り解除" : "お気に入り追加";
-      fav.onclick = () => {
-        toggleFav(c);
-        renderResults(); // 状態反映
-        if (favOnly) searchCards($("q").value);
-      };
-
-      actions.append(btnMain, btnSide, btnOpen, fav);
+      actions.append(btnMain, btnSide, btnOpen);
       meta.append(name, sub, actions);
       wrap.append(img, meta);
       grid.appendChild(wrap);
 
-      // ---- list ----
+      // ---- list row ----
       const row = document.createElement("div");
       row.className = "row";
 
@@ -559,7 +574,9 @@
       limg.loading = "lazy";
       limg.alt = c.name;
       limg.src = c.image || "";
-      limg.onerror = () => { limg.style.display = "none"; };
+      limg.onerror = () => {
+        limg.style.display = "none";
+      };
 
       const rmeta = document.createElement("div");
       rmeta.className = "rmeta";
@@ -587,27 +604,18 @@
       lOpen.textContent = "詳細";
       lOpen.onclick = () => window.open(c.scryfall_uri, "_blank", "noopener,noreferrer");
 
-      const lfav = document.createElement("button");
-      lfav.className = "favBtn";
-      const lon = isFav(c);
-      lfav.classList.toggle("on", lon);
-      lfav.textContent = lon ? "★" : "☆";
-      lfav.title = lon ? "お気に入り解除" : "お気に入り追加";
-      lfav.onclick = () => {
-        toggleFav(c);
-        renderResults();
-        if (favOnly) searchCards($("q").value);
-      };
-
-      ractions.append(lMain, lSide, lOpen, lfav);
-
+      ractions.append(lMain, lSide, lOpen);
       rmeta.append(rname, rsub, ractions);
+
       row.append(limg, rmeta);
       list.appendChild(row);
     }
   }
 
-  function makeTile(boardName, it){
+  // =========================
+  // Render Deck
+  // =========================
+  function makeTile(boardName, it) {
     const tile = document.createElement("div");
     tile.className = "tile";
     tile.title = `${it.qty}x ${it.name}`;
@@ -616,7 +624,9 @@
     img.alt = it.name;
     img.src = it.image || "";
     img.loading = "lazy";
-    img.onerror = () => { img.style.display = "none"; };
+    img.onerror = () => {
+      img.style.display = "none";
+    };
 
     const badge = document.createElement("div");
     badge.className = "badge";
@@ -624,7 +634,7 @@
 
     tile.append(img, badge);
 
-    tile.addEventListener("click", (e)=>{
+    tile.addEventListener("click", (e) => {
       e.preventDefault();
       openCardModal(boardName, it.id);
     });
@@ -632,14 +642,14 @@
     return tile;
   }
 
-  function renderTiles(container, obj, boardName){
+  function renderTiles(container, obj, boardName) {
     container.innerHTML = "";
-    for (const it of listEntries(obj)){
+    for (const it of listEntries(obj)) {
       container.appendChild(makeTile(boardName, it));
     }
   }
 
-  function renderDeck(){
+  function renderDeck() {
     const mc = countBoard(state.deck.main);
     const sc = countBoard(state.deck.side);
 
@@ -657,34 +667,46 @@
     renderTiles($("sideTiles"), state.deck.side, "side");
   }
 
-  // ===== Modals =====
-  function showOverlay(id){
+  // =========================
+  // Modals
+  // =========================
+  function showOverlay(id) {
     const ov = $(id);
     ov.classList.add("show");
-    ov.setAttribute("aria-hidden","false");
-  }
-  function hideOverlay(id){
-    const ov = $(id);
-    ov.classList.remove("show");
-    ov.setAttribute("aria-hidden","true");
+    ov.setAttribute("aria-hidden", "false");
   }
 
-  function openCardModal(board, cardId){
+  function hideOverlay(id) {
+    const ov = $(id);
+    ov.classList.remove("show");
+    ov.setAttribute("aria-hidden", "true");
+  }
+
+  function openCardModal(board, cardId) {
     state.openCard = { board, id: cardId };
     renderCardModal();
     showOverlay("cardModalOverlay");
   }
 
-  function closeCardModal(){
-    cleanupZeros(); // 閉じる時だけ掃除（UIは出さない）
+  function closeCardModal() {
+    cleanupZeros();
     state.openCard = null;
     hideOverlay("cardModalOverlay");
     renderDeck();
   }
 
-  function renderCardModal(){
+  function escapeHtml(s) {
+    return String(s)
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
+  }
+
+  function renderCardModal() {
     const body = $("cardModalBody");
-    if (!state.openCard){
+    if (!state.openCard) {
       body.innerHTML = "";
       return;
     }
@@ -692,11 +714,11 @@
     const obj = boardObj(board);
     const it = obj[id];
 
-    const safe = it || { id, name:"(カード)", qty:0, scryfall_uri:"#", image:"" };
+    const safe = it || { id, name: "(カード)", qty: 0, scryfall_uri: "#", image: "" };
 
     $("cardModalTitle").textContent = `${board === "main" ? "Main" : "Side"}のカード操作`;
 
-    // 要望：カード名の下の「USG #174 / ja / 1998...」行は出さない
+    // 要望：カード名の下の「USG #174 / ja / 1998-...」行は出さない
     body.innerHTML = `
       <div class="cardModalRow">
         <img src="${safe.image || ""}" alt="">
@@ -713,7 +735,7 @@
       </div>
     `;
 
-    $("cmPlus").onclick  = () => changeQty(board, id, +1, true);
+    $("cmPlus").onclick = () => changeQty(board, id, +1, true);
     $("cmMinus").onclick = () => changeQty(board, id, -1, true);
 
     $("cmMove").onclick = () => {
@@ -722,25 +744,33 @@
     };
 
     $("cmOpen").onclick = () => {
-      if (safe.scryfall_uri && safe.scryfall_uri !== "#") window.open(safe.scryfall_uri, "_blank", "noopener,noreferrer");
+      if (safe.scryfall_uri && safe.scryfall_uri !== "#") {
+        window.open(safe.scryfall_uri, "_blank", "noopener,noreferrer");
+      }
     };
 
-    if ((safe.qty||0) <= 0) $("cmMove").disabled = true;
+    if ((safe.qty || 0) <= 0) $("cmMove").disabled = true;
   }
 
-  function openSettingsModal(){
+  function openSettingsModal() {
     $("deckName").value = state.currentDeckName || "";
     refreshDeckSelect();
     showOverlay("settingsModalOverlay");
   }
-  function closeSettingsModal(){
+
+  function closeSettingsModal() {
     hideOverlay("settingsModalOverlay");
   }
 
-  // ===== Save/Load/Delete =====
-  function saveCurrentDeck(){
+  // =========================
+  // Save / Load / Delete Deck
+  // =========================
+  function saveCurrentDeck() {
     const name = $("deckName").value.trim();
-    if (!name){ setStatus("デッキ名を入力してください"); return; }
+    if (!name) {
+      setStatus("デッキ名を入力してください");
+      return;
+    }
 
     const store = loadStore();
     const toSave = structuredClone(state.deck);
@@ -755,59 +785,55 @@
     refreshDeckSelect();
   }
 
-  function loadDeckByName(name){
+  function loadDeckByName(name) {
     const store = loadStore();
     const d = store.decks[name];
-    if (!d){ setStatus(`見つかりません: ${name}`); return; }
+    if (!d) {
+      setStatus(`見つかりません: ${name}`);
+      return;
+    }
 
     state.deck = {
       name: d.name || name,
       updatedAt: d.updatedAt || new Date().toISOString(),
       main: d.main || {},
-      side: d.side || {}
+      side: d.side || {},
     };
+
     setCurrentDeckName(name);
     renderDeck();
     setStatus(`読み込みました: ${name}`);
   }
 
-  function deleteDeckByName(name){
+  function deleteDeckByName(name) {
     const store = loadStore();
-    if (!store.decks[name]){ setStatus(`見つかりません: ${name}`); return; }
+    if (!store.decks[name]) {
+      setStatus(`見つかりません: ${name}`);
+      return;
+    }
     delete store.decks[name];
     saveStore(store);
+
     refreshDeckSelect();
     setStatus(`削除しました: ${name}`);
-    if (state.currentDeckName === name){
+
+    if (state.currentDeckName === name) {
       setCurrentDeckName("");
       state.deck = newEmptyDeck("");
       renderDeck();
     }
   }
 
-  function newDeck(){
+  function newDeck() {
     state.deck = newEmptyDeck("");
     setCurrentDeckName("");
     renderDeck();
     setStatus("新規デッキを作成しました");
   }
 
-  // ===== helpers =====
-  function escapeHtml(s){
-    return String(s)
-      .replaceAll("&","&amp;")
-      .replaceAll("<","&lt;")
-      .replaceAll(">","&gt;")
-      .replaceAll('"',"&quot;")
-      .replaceAll("'","&#039;");
-  }
-
-  // ===== Events =====
-  $("tabSearch").onclick = () => setView("search");
-  $("tabDeck").onclick = () => setView("deck");
-  window.addEventListener("popstate", syncViewFromHash);
-  window.addEventListener("hashchange", syncViewFromHash);
-
+  // =========================
+  // Events
+  // =========================
   $("btnSearch").onclick = () => searchCards($("q").value);
 
   $("btnClear").onclick = () => {
@@ -817,40 +843,33 @@
     setStatus("クリアしました");
   };
 
-  $("q").addEventListener("keydown", (e)=>{ if (e.key === "Enter") searchCards($("q").value); });
-
-  $("order").addEventListener("change", ()=>{
-    if (favOnly) searchCards($("q").value);
-    else if ($("q").value.trim()) searchCards($("q").value);
+  $("q").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") searchCards($("q").value);
   });
 
-  $("preferJa").addEventListener("change", ()=>{
-    if (favOnly) return; // お気に入り表示には影響させない
+  $("order").addEventListener("change", () => {
     if ($("q").value.trim()) searchCards($("q").value);
   });
 
-  $("collapseSame").addEventListener("change", ()=>{
-    if (favOnly) return;
+  $("preferJa").addEventListener("change", () => {
     if ($("q").value.trim()) searchCards($("q").value);
   });
 
-  $("viewMode").addEventListener("change", ()=> setSearchView($("viewMode").value));
+  $("collapseSame").addEventListener("change", () => {
+    if ($("q").value.trim()) searchCards($("q").value);
+  });
 
-  $("btnFavOnly").onclick = () => {
-    setFavOnly(!favOnly);
+  $("viewMode").addEventListener("change", () => setSearchView($("viewMode").value));
 
-    // お気に入りモードに入ったら即表示
-    if (favOnly){
-      searchCards($("q").value);
-    }else{
-      // 戻したら、入力があれば検索、なければ空表示
-      if ($("q").value.trim()) searchCards($("q").value);
-      else { state.results = []; renderResults(); setStatus("待機中"); }
-    }
+  $("toggleMain").onclick = () => {
+    state.boardCollapsed.main = !state.boardCollapsed.main;
+    renderDeck();
   };
 
-  $("toggleMain").onclick = () => { state.boardCollapsed.main = !state.boardCollapsed.main; renderDeck(); };
-  $("toggleSide").onclick = () => { state.boardCollapsed.side = !state.boardCollapsed.side; renderDeck(); };
+  $("toggleSide").onclick = () => {
+    state.boardCollapsed.side = !state.boardCollapsed.side;
+    renderDeck();
+  };
 
   $("btnClearBoards").onclick = () => {
     if (!confirm("Main/Side を全消しします。よろしいですか？")) return;
@@ -858,41 +877,61 @@
   };
 
   $("btnOpenSettings").onclick = openSettingsModal;
-
   $("closeCardModal").onclick = closeCardModal;
   $("closeSettingsModal").onclick = closeSettingsModal;
 
-  $("cardModalOverlay").addEventListener("click", (e)=>{
+  $("cardModalOverlay").addEventListener("click", (e) => {
     if (e.target === $("cardModalOverlay")) closeCardModal();
   });
-  $("settingsModalOverlay").addEventListener("click", (e)=>{
+
+  $("settingsModalOverlay").addEventListener("click", (e) => {
     if (e.target === $("settingsModalOverlay")) closeSettingsModal();
   });
 
   $("btnSaveDeck").onclick = saveCurrentDeck;
 
   $("btnNewDeck").onclick = () => {
-    if (!confirm("新規デッキを作成します（未保存の変更は失われます）。よろしいですか？")) return;
+    if (!confirm("新規デッキを作成します（未保存の変更は失われます）。よろしいですか？"))
+      return;
     newDeck();
   };
 
   $("btnLoadDeck").onclick = () => {
     const name = $("deckSelect").value;
-    if (!name){ setStatus("読み込むデッキを選択してください"); return; }
+    if (!name) {
+      setStatus("読み込むデッキを選択してください");
+      return;
+    }
     loadDeckByName(name);
     closeSettingsModal();
   };
 
   $("btnDeleteDeck").onclick = () => {
     const name = $("deckSelect").value || state.currentDeckName;
-    if (!name){ setStatus("削除するデッキを選択してください"); return; }
+    if (!name) {
+      setStatus("削除するデッキを選択してください");
+      return;
+    }
     if (!confirm(`デッキ「${name}」を削除します。よろしいですか？`)) return;
     deleteDeckByName(name);
   };
 
+  // 0枚掃除ボタンはindex.html側から消す想定だけど、
+  // もし残っていても動くようにしておく
+  const cleanupBtn = $("btnCleanupZeros");
+  if (cleanupBtn) {
+    cleanupBtn.onclick = () => {
+      cleanupZeros();
+      renderDeck();
+      setStatus("0枚カードを掃除しました");
+    };
+  }
+
   $("sortDeck").addEventListener("change", renderDeck);
 
-  // ===== Init =====
+  // =========================
+  // Init
+  // =========================
   $("verBadge").textContent = `ver ${APP_VERSION}`;
   loadStore();
   refreshDeckSelect();
@@ -903,8 +942,4 @@
   setStatus("待機中");
   setSearchView(searchView);
   syncViewFromHash();
-
-  // init fav-only button state
-  setFavOnly(favOnly);
-
 })();
