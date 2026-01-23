@@ -169,10 +169,15 @@
   }
 
   function normalizeCard(card) {
+    const displayName = getDisplayName(card);
+    const displayType = getDisplayType(card);
+
     return {
       id: card.id,
       oracle_id: card.oracle_id,
-      name: getDisplayName(card), // 表示名（日本語優先）
+      name: displayName, // 表示名（日本語優先）
+      sort_name: normalizeForSortName(displayName), // ★追加：ソート用
+      type_order: primaryTypeOrder(displayType),     // ★追加：タイプ順用
       en_name: card.name || "",
       set: (card.set || "").toUpperCase(),
       collector: card.collector_number || "",
@@ -181,7 +186,7 @@
       scryfall_uri: card.scryfall_uri,
       image: getCardImage(card),
       cmc: typeof card.cmc === "number" ? card.cmc : Number(card.cmc || 0),
-      type_line: getDisplayType(card),
+      type_line: displayType,
     };
   }
 
@@ -416,6 +421,34 @@
   }
 
   // =========================
+  // Deck sort helpers
+  // =========================
+  const TYPE_ORDER = ["Land", "Creature", "Instant", "Sorcery", "Artifact", "Enchantment", "Planeswalker"];
+
+  function normalizeForSortName(s) {
+    // 例: 量（りょう）子（し）… -> 量子…
+    // 全角/半角括弧を除去し、記号/空白ゆれを軽く吸収
+    return String(s || "")
+      .replace(/\s+/g, " ")
+      .replace(/[（(][^）)]*[）)]/g, "")   // 括弧内（ふりがな等）を除去
+      .replace(/[・･]/g, "")
+      .trim();
+  }
+
+  function primaryTypeOrder(typeLine) {
+    // typeLine例: "Artifact Creature — Golem"
+    // 左側（—より前）から TYPE_ORDER 優先でマッチしたものを primary とする
+    const left = String(typeLine || "").split("—")[0] || "";
+    const tokens = left.split(/\s+/).filter(Boolean);
+
+    for (let i = 0; i < TYPE_ORDER.length; i++) {
+      if (tokens.includes(TYPE_ORDER[i])) return i;
+    }
+    // どれにも当たらない（Battle等）場合は最後
+    return TYPE_ORDER.length;
+  }
+
+  // =========================
   // Deck (Main/Side)
   // =========================
   function boardObj(board) {
@@ -428,19 +461,44 @@
 
   function listEntries(obj) {
     const arr = Object.values(obj);
-    const mode = $("sortDeck")?.value || "name";
+    const mode = $("sortDeck")?.value || "name"; // "name" | "cmc" | "type"
+
     arr.sort((a, b) => {
-      if (mode === "cmc") {
-        const ac = Number(a.cmc ?? 0);
-        const bc = Number(b.cmc ?? 0);
-        if (ac !== bc) return ac - bc;
-      } else if (mode === "type") {
-        const at = a.type_line || "";
-        const bt = b.type_line || "";
-        if (at !== bt) return at.localeCompare(bt);
+      // --- ソート用のフォールバック（過去データ互換） ---
+      const aName = a.sort_name || normalizeForSortName(a.name || "");
+      const bName = b.sort_name || normalizeForSortName(b.name || "");
+
+      const aTypeOrder = (typeof a.type_order === "number") ? a.type_order : primaryTypeOrder(a.type_line || "");
+      const bTypeOrder = (typeof b.type_order === "number") ? b.type_order : primaryTypeOrder(b.type_line || "");
+
+      const aCmc = Number(a.cmc ?? 0);
+      const bCmc = Number(b.cmc ?? 0);
+
+      // --- モード別キー ---
+      if (mode === "type") {
+        // タイプ順 → MV → 名前
+        if (aTypeOrder !== bTypeOrder) return aTypeOrder - bTypeOrder;
+        if (aCmc !== bCmc) return aCmc - bCmc;
+        const n = aName.localeCompare(bName, "ja");
+        if (n !== 0) return n;
+      } else if (mode === "cmc") {
+        // MV → タイプ順 → 名前
+        if (aCmc !== bCmc) return aCmc - bCmc;
+        if (aTypeOrder !== bTypeOrder) return aTypeOrder - bTypeOrder;
+        const n = aName.localeCompare(bName, "ja");
+        if (n !== 0) return n;
+      } else {
+        // 名前 → タイプ順 → MV（任意だけど安定する）
+        const n = aName.localeCompare(bName, "ja");
+        if (n !== 0) return n;
+        if (aTypeOrder !== bTypeOrder) return aTypeOrder - bTypeOrder;
+        if (aCmc !== bCmc) return aCmc - bCmc;
       }
-      return (a.name || "").localeCompare(b.name || "");
+
+      // 最終安定キー（並びがブレないように）
+      return String(a.id || "").localeCompare(String(b.id || ""));
     });
+
     return arr;
   }
 
@@ -943,3 +1001,4 @@
   setSearchView(searchView);
   syncViewFromHash();
 })();
+
