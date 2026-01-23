@@ -4,7 +4,9 @@
    - Collapse same (latest printing)
    - Deck builder (Main/Side) with modal ops
    - Fix: Japanese search
-     - Furigana-in-parentheses (（） and () + spaces)
+     - Avoid broad search that mixes unrelated cards:
+       For JA input, use name-only queries (name:"..." or name:/.../)
+     - Furigana-in-parentheses (（） and () + spaces) via name regex
      - Japanese printed_name even when oracle name is English:
        resolve by /cards/named?lang=ja => oracle_id, then search by oracleid:
      - Japanese partial query:
@@ -17,7 +19,7 @@
   const $ = (id) => document.getElementById(id);
 
   // ===== Version =====
-  const APP_VERSION = "0.0.5";
+  const APP_VERSION = "0.0.6";
 
   // ===== Search view mode (grid/list) =====
   const SEARCH_VIEW_KEY = "mtg_search_view";
@@ -241,7 +243,7 @@
     return { ok: res.ok, data, status: res.status, details: data?.details || "" };
   }
 
-  // NEW: Autocomplete (multilingual)
+  // Autocomplete (multilingual)
   async function fetchAutocomplete(q) {
     const url = new URL("https://api.scryfall.com/cards/autocomplete");
     url.searchParams.set("q", q);
@@ -254,7 +256,7 @@
     return Array.isArray(data?.data) ? data.data : [];
   }
 
-  // NEW: /cards/named for JA printed name -> oracle_id
+  // /cards/named for JA printed name -> oracle_id
   function normalizeJaNameForResolve(s) {
     return String(s || "")
       .replace(/[（(][^）)]*[）)]/g, "") // ふりがな等を除去
@@ -443,6 +445,7 @@
       const isJaInput = looksJapanese(s);
 
       // (1) 日本語フルネーム寄り: named(lang=ja) -> oracleid:
+      // 例: 「知りたがりの学徒、タミヨウ」など
       if (isJaInput) {
         const oid = await resolveJapaneseToOracleId(s);
         if (oid) {
@@ -468,33 +471,51 @@
         }
       }
 
-      // (3) preferJa: lang:ja search（補助）
+      // (3) preferJa: 日本語優先の「名前だけ」検索
+      // 重要: lang:ja ${s} のような曖昧検索は関係ないカードが混ざるので使わない
       let jaHitCount = 0;
+
       if (preferJa) {
-        const rJa = await fetchSearch(`lang:ja ${s}`);
-        const jaArr = Array.isArray(rJa.data?.data) ? rJa.data.data : [];
-        jaHitCount = jaArr.length;
-        pushAll(jaArr);
+        const normName = normalizeJaNameForResolve(s); // ふりがな()除去 + 空白除去
+        const qName = `"${String(normName).replace(/"/g, '\\"')}"`;
 
-        // (4) Furigana regex fallback（日本語で、まだ何もないとき）
-        if (jaHitCount === 0 && isJaInput && merged.size === 0) {
-          const rx = buildFuriganaRegex(s);
+        // 最優先：ふりがな括弧を吸収する正規表現（日本語入力のときのみ）
+        if (isJaInput && normName) {
+          const rx = buildFuriganaRegex(normName);
           if (rx) {
-            const rRx = await fetchSearch(`lang:ja name:/${rx}/`);
-            const rxArr = Array.isArray(rRx.data?.data) ? rRx.data.data : [];
-            pushAll(rxArr);
+            const r1 = await fetchSearch(`lang:ja name:/${rx}/`);
+            const a1 = Array.isArray(r1.data?.data) ? r1.data.data : [];
+            if (a1.length) {
+              jaHitCount += a1.length;
+              pushAll(a1);
+            }
 
+            // 次点：ゆるめ（空白や挟み込みが多いケース）
             if (merged.size === 0) {
               const rxLoose = rx.replace(/\\s\*/g, ".*?");
-              const rRx2 = await fetchSearch(`lang:ja name:/${rxLoose}/`);
-              const rxArr2 = Array.isArray(rRx2.data?.data) ? rRx2.data.data : [];
-              pushAll(rxArr2);
+              const r2 = await fetchSearch(`lang:ja name:/${rxLoose}/`);
+              const a2 = Array.isArray(r2.data?.data) ? r2.data.data : [];
+              if (a2.length) {
+                jaHitCount += a2.length;
+                pushAll(a2);
+              }
             }
+          }
+        }
+
+        // 保険：name:"..."（名前のみフレーズ検索）
+        if (merged.size === 0 && normName) {
+          const r3 = await fetchSearch(`lang:ja name:${qName}`);
+          const a3 = Array.isArray(r3.data?.data) ? r3.data.data : [];
+          if (a3.length) {
+            jaHitCount += a3.length;
+            pushAll(a3);
           }
         }
       }
 
-      // (5) Any language fallback（英語入力のみ）
+      // (4) Any language fallback（英語入力のみ）
+      // 日本語入力でこれをやると関係ないカードが混ざるのでやらない
       if (!isJaInput) {
         const rAny = await fetchSearch(s);
         pushAll(Array.isArray(rAny.data?.data) ? rAny.data.data : []);
