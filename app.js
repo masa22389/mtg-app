@@ -908,3 +908,123 @@
       setCurrentDeckName("");
       state.deck = newEmptyDeck("");
       renderDeck();
+    }
+  }
+
+  function newDeck() {
+    state.deck = newEmptyDeck("");
+    setCurrentDeckName("");
+    renderDeck();
+    setStatus("新規デッキを作成しました");
+  }
+
+  // =========================
+  // Events
+  // =========================
+  $("btnSearch").onclick = () => searchCards($("q").value);
+
+  $("btnClear").onclick = () => {
+    $("q").value = "";
+    state.results = [];
+    renderResults();
+    setStatus("クリアしました");
+  };
+
+  $("q").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") searchCards($("q").value);
+  });
+
+  $("order").addEventListener("change", () => {
+    if ($("q").value.trim()) searchCards($("q").value);
+  });
+
+  $("preferJa").addEventListener("change", () => {
+    if ($("q").value.trim()) searchCards($("q").value);
+  });
+
+  $("collapseSame").addEventListener("change", () => {
+    if ($("q").value.trim()) searchCards($("q").value);
+  });
+
+  $("viewMode").addEventListener("change", () => setSearchView($("viewMode").value));
+
+  $("toggleMain").onclick = () => {
+    state.boardCollapsed.main = !state.boardCollapsed.main;
+    renderDeck();
+  };
+
+  $("toggleSide").onclick = () => {
+    state.boardCollapsed.side = !state.boardCollapsed.side;
+    renderDeck();
+  };
+
+  $("btnClearBoards").onclick = () => {
+    if (!confirm("Main/Side を全消しします。よろしいですか？")) return;
+    clearBoards();
+  };
+
+  $("btnOpenSettings").onclick = openSettingsModal;
+  $("closeCardModal").onclick = closeCardModal;
+  $("closeSettingsModal").onclick = closeSettingsModal;
+
+  $("cardModalOverlay").addEventListener("click", (e) => {
+    if (e.target === $("cardModalOverlay")) closeCardModal();
+  });
+
+  $("settingsModalOverlay").addEventListener("click", (e) => {
+    if (e.target === $("settingsModalOverlay")) closeSettingsModal();
+  });
+
+  $("btnSaveDeck").onclick = saveCurrentDeck;
+
+  $("btnNewDeck").onclick = () => {
+    if (!confirm("新規デッキを作成します（未保存の変更は失われます）。よろしいですか？"))
+      return;
+    newDeck();
+  };
+
+  $("btnLoadDeck").onclick = () => {
+    const name = $("deckSelect").value;
+    if (!name) {
+      setStatus("読み込むデッキを選択してください");
+      return;
+    }
+    loadDeckByName(name);
+    closeSettingsModal();
+  };
+
+  $("btnDeleteDeck").onclick = () => {
+    const name = $("deckSelect").value || state.currentDeckName;
+    if (!name) {
+      setStatus("削除するデッキを選択してください");
+      return;
+    }
+    if (!confirm(`デッキ「${name}」を削除します。よろしいですか？`)) return;
+    deleteDeckByName(name);
+  };
+
+  const cleanupBtn = $("btnCleanupZeros");
+  if (cleanupBtn) {
+    cleanupBtn.onclick = () => {
+      cleanupZeros();
+      renderDeck();
+      setStatus("0枚カードを掃除しました");
+    };
+  }
+
+  $("sortDeck").addEventListener("change", renderDeck);
+
+  // =========================
+  // Init
+  // =========================
+  $("verBadge").textContent = `ver ${APP_VERSION}`;
+  loadStore();
+  refreshDeckSelect();
+
+  setCurrentDeckName("");
+  renderResults();
+  renderDeck();
+  setStatus("待機中");
+  setSearchView(searchView);
+  syncViewFromHash();
+})();
