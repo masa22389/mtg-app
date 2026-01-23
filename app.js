@@ -411,32 +411,9 @@
       // 1) simple contains (fast)
       //    "量子の" -> name:/量子の/
       const rx1 = buildSimpleContainsRegex(s);
-      const q1 = `lang:ja name:/${rx1}/`;
+      const q1 = `lang:ja name:${s}`;
       const r1 = await fetchSearch(q1);
       pushAll(Array.isArray(r1.data?.data) ? r1.data.data : []);
-
-      // 2) furigana parentheses tolerant
-      //    "量子の" -> name:/量(?:（…）)?子(?:（…）)?の/
-      if (merged.size === 0) {
-        const rx2 = buildFuriganaRegex(s);
-        if (rx2) {
-          const q2 = `lang:ja name:/${rx2}/`;
-          const r2 = await fetchSearch(q2);
-          pushAll(Array.isArray(r2.data?.data) ? r2.data.data : []);
-        }
-      }
-
-      // 3) extra-loose fallback (only if still empty)
-      if (merged.size === 0) {
-        const rx2 = buildFuriganaRegex(s);
-        if (rx2) {
-          // allow any chars between tokens to absorb unexpected separators
-          const rxLoose = rx2.replace(/\\s\*/g, ".*?");
-          const q3 = `lang:ja name:/${rxLoose}/`;
-          const r3 = await fetchSearch(q3);
-          pushAll(Array.isArray(r3.data?.data) ? r3.data.data : []);
-        }
-      }
 
       if (merged.size > 0) {
         let rawCards = Array.from(merged.values());
@@ -1028,3 +1005,4 @@
   setSearchView(searchView);
   syncViewFromHash();
 })();
+
