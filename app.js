@@ -3,14 +3,9 @@
    - Prefer Japanese printing
    - Collapse same (latest printing)
    - Deck builder (Main/Side) with modal ops
-   - Fix: Japanese search
-     - Avoid broad search that mixes unrelated cards:
-       For JA input, use name-only queries (name:"..." or name:/.../)
-     - Furigana-in-parentheses (（） and () + spaces) via name regex
-     - Japanese printed_name even when oracle name is English:
-       resolve by /cards/named?lang=ja => oracle_id, then search by oracleid:
-     - Japanese partial query:
-       use /cards/autocomplete (multilingual) => candidate names => resolve => oracleid:
+   - Fix: Japanese partial search must be name-limited (no unrelated cards)
+   - Fix: Furigana-in-parentheses Japanese name search (（） and () + spaces)
+   - Deck sort: Type order / MV (CMC) / Name
 */
 
 (() => {
@@ -19,7 +14,7 @@
   const $ = (id) => document.getElementById(id);
 
   // ===== Version =====
-  const APP_VERSION = "0.0.6";
+  const APP_VERSION = "0.0.7";
 
   // ===== Search view mode (grid/list) =====
   const SEARCH_VIEW_KEY = "mtg_search_view";
@@ -42,20 +37,6 @@
     openCard: null, // { board:"main"|"side", id:"..." }
     boardCollapsed: { main: false, side: false },
   };
-
-  // =========================
-  // Global safety (show errors)
-  // =========================
-  window.addEventListener("error", (e) => {
-    try {
-      console.error(e?.error || e);
-      const msg = e?.error?.message || e?.message || "unknown error";
-      const st = $("status");
-      if (st) st.textContent = `エラー: ${msg}`;
-      const ds = $("deckStatus");
-      if (ds) ds.textContent = `エラー: ${msg}`;
-    } catch {}
-  });
 
   // =========================
   // View switching
@@ -132,7 +113,7 @@
     const store = loadStore();
     const sel = $("deckSelect");
     sel.innerHTML = "";
-    const names = Object.keys(store.decks).sort((a, b) => a.localeCompare(b));
+    const names = Object.keys(store.decks).sort((a, b) => a.localeCompare(b, "ja"));
 
     const opt0 = document.createElement("option");
     opt0.value = "";
@@ -157,28 +138,6 @@
   }
 
   // =========================
-  // Deck sort helpers (defined early)
-  // =========================
-  const TYPE_ORDER = ["Land", "Creature", "Instant", "Sorcery", "Artifact", "Enchantment", "Planeswalker"];
-
-  function normalizeForSortName(s) {
-    return String(s || "")
-      .replace(/\s+/g, " ")
-      .replace(/[（(][^）)]*[）)]/g, "") // 括弧内（ふりがな等）を除去
-      .replace(/[・･]/g, "")
-      .trim();
-  }
-
-  function primaryTypeOrder(typeLine) {
-    const left = String(typeLine || "").split("—")[0] || "";
-    const tokens = left.split(/\s+/).filter(Boolean);
-    for (let i = 0; i < TYPE_ORDER.length; i++) {
-      if (tokens.includes(TYPE_ORDER[i])) return i;
-    }
-    return TYPE_ORDER.length;
-  }
-
-  // =========================
   // Scryfall helpers
   // =========================
   function looksJapanese(s) {
@@ -186,6 +145,7 @@
   }
 
   function isAdvancedQuery(s) {
+    // If they typed "t:" "o:" etc or quotes/colon etc treat as advanced
     return (
       /(^|\s)(t:|c:|o:|oracle:|f:|format:|lang:|is:|set:|cn:|rarity:|type:|pow|tou|cmc)\b/i.test(
         s
@@ -208,6 +168,32 @@
 
   function getDisplayType(card) {
     return card.printed_type_line || card.type_line || "";
+  }
+
+  // =========================
+  // Deck sort helpers
+  // =========================
+  const TYPE_ORDER = ["Land", "Creature", "Instant", "Sorcery", "Artifact", "Enchantment", "Planeswalker"];
+
+  function normalizeForSortName(s) {
+    // 例: 量（りょう）子（し）… -> 量子…
+    return String(s || "")
+      .replace(/\s+/g, " ")
+      .replace(/[（(][^）)]*[）)]/g, "") // 括弧内（ふりがな等）を除去
+      .replace(/[・･]/g, "")
+      .trim();
+  }
+
+  function primaryTypeOrder(typeLine) {
+    // typeLine例: "Artifact Creature — Golem"
+    const left = String(typeLine || "").split("—")[0] || "";
+    const tokens = left.split(/\s+/).filter(Boolean);
+
+    for (let i = 0; i < TYPE_ORDER.length; i++) {
+      if (tokens.includes(TYPE_ORDER[i])) return i;
+    }
+    // Battle等は最後
+    return TYPE_ORDER.length;
   }
 
   function normalizeCard(card) {
@@ -234,49 +220,13 @@
 
   async function fetchSearch(q) {
     const url = new URL("https://api.scryfall.com/cards/search");
-    console.log("[Scryfall q]", q);
     url.searchParams.set("q", q);
     url.searchParams.set("unique", "prints");
     url.searchParams.set("order", $("order").value);
 
     const res = await fetch(url.toString(), { headers: { Accept: "application/json" } });
     const data = await res.json().catch(() => ({}));
-    return { ok: res.ok, data, status: res.status, details: data?.details || "" };
-  }
-
-  // Autocomplete (multilingual)
-  async function fetchAutocomplete(q) {
-    const url = new URL("https://api.scryfall.com/cards/autocomplete");
-    url.searchParams.set("q", q);
-    url.searchParams.set("include_multilingual", "true");
-    url.searchParams.set("include_extras", "true");
-
-    const res = await fetch(url.toString(), { headers: { Accept: "application/json" } });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) return [];
-    return Array.isArray(data?.data) ? data.data : [];
-  }
-
-  // /cards/named for JA printed name -> oracle_id
-  function normalizeJaNameForResolve(s) {
-    return String(s || "")
-      .replace(/[（(][^）)]*[）)]/g, "") // ふりがな等を除去
-      .replace(/[\s　]+/g, "") // 空白除去
-      .trim();
-  }
-
-  async function resolveJapaneseToOracleId(input) {
-    const norm = normalizeJaNameForResolve(input);
-    if (!norm) return null;
-
-    const url = new URL("https://api.scryfall.com/cards/named");
-    url.searchParams.set("fuzzy", norm);
-    url.searchParams.set("lang", "ja");
-
-    const res = await fetch(url.toString(), { headers: { Accept: "application/json" } });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) return null;
-    return data?.oracle_id || null;
+    return { ok: res.ok, data, status: res.status };
   }
 
   function dateKey(d) {
@@ -370,12 +320,15 @@
   }
 
   // =========================
-  // Furigana-in-parentheses fix (regex fallback)
+  // Japanese name regex (furigana parentheses)
   // =========================
   function escapeRegex(s) {
     return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   }
 
+  // Input like "量子の" should match "量（りょう）子（し）の謎（なぞ）かけ屋（や）"
+  // - supports () and （）
+  // - allows optional spaces
   function buildFuriganaRegex(input) {
     const trimmed = String(input || "").trim();
     const chars = Array.from(trimmed).filter((ch) => ch !== " " && ch !== "　");
@@ -391,139 +344,125 @@
     return parts.join("\\s*");
   }
 
-  // =========================
-  // Search
-  // =========================
+  function buildSimpleContainsRegex(input) {
+    // simplest: escape as-is (keeps "、" etc)
+    const s = String(input || "").trim();
+    if (!s) return "";
+    return escapeRegex(s);
+  }
+
   async function searchCards(rawInput) {
-    try {
-      const s = rawInput.trim();
-      if (!s) {
-        state.results = [];
-        renderResults();
-        setStatus("検索ワードを入力してください");
-        return;
-      }
+    const s = rawInput.trim();
+    if (!s) {
+      state.results = [];
+      renderResults();
+      setStatus("検索ワードを入力してください");
+      return;
+    }
 
-      const preferJa = $("preferJa").checked;
-      const collapseSame = $("collapseSame").checked;
+    const preferJa = $("preferJa").checked;
+    const collapseSame = $("collapseSame").checked;
 
-      setStatus("検索中…");
+    setStatus("検索中…");
 
-      // Advanced query: keep as-is (optionally try lang:ja first)
-      if (isAdvancedQuery(s)) {
-        const queries =
-          preferJa && looksJapanese(s) && !/(^|\s)lang:/i.test(s)
-            ? [`lang:ja ${s}`, s]
-            : [s];
+    const isJaInput = looksJapanese(s);
 
-        for (const q of queries) {
-          const r = await fetchSearch(q);
-          const arr = Array.isArray(r.data?.data) ? r.data.data : [];
-          if (arr.length > 0) {
-            let rawCards = arr;
-            rawCards = applyCollapseSame(rawCards, s, preferJa, collapseSame);
-            let cards = rawCards.map(normalizeCard);
-            cards = sortResults(cards, s, preferJa);
+    // Advanced query: keep as-is (optionally try lang:ja first)
+    if (isAdvancedQuery(s)) {
+      const queries =
+        preferJa && isJaInput && !/(^|\s)lang:/i.test(s)
+          ? [`lang:ja ${s}`, s]
+          : [s];
 
-            state.results = cards;
-            renderResults();
-            setStatus(`ヒット: ${cards.length}件`);
-            return;
-          }
+      for (const q of queries) {
+        const r = await fetchSearch(q);
+        const arr = Array.isArray(r.data?.data) ? r.data.data : [];
+        if (arr.length > 0) {
+          let rawCards = arr;
+          rawCards = applyCollapseSame(rawCards, s, preferJa, collapseSame);
+          let cards = rawCards.map(normalizeCard);
+          cards = sortResults(cards, s, preferJa);
+
+          state.results = cards;
+          renderResults();
+          setStatus(`ヒット: ${cards.length}件`);
+          return;
         }
-
-        state.results = [];
-        renderResults();
-        setStatus("見つかりませんでした");
-        return;
       }
 
+      state.results = [];
+      renderResults();
+      setStatus("見つかりませんでした");
+      return;
+    }
+
+    // =========================================================
+    // IMPORTANT:
+    // Japanese input must be NAME-LIMITED.
+    // We DO NOT use: "lang:ja <text>" (too broad -> unrelated cards)
+    // We DO NOT use: /cards/named?fuzzy=... (404 for partial Japanese)
+    // =========================================================
+    if (isJaInput) {
       const merged = new Map();
       const pushAll = (arr) => {
         for (const c of arr) merged.set(c.id, c);
       };
 
-      const isJaInput = looksJapanese(s);
+      // 1) simple contains (fast)
+      //    "量子の" -> name:/量子の/
+      const rx1 = buildSimpleContainsRegex(s);
+      const q1 = `lang:ja name:/${rx1}/`;
+      const r1 = await fetchSearch(q1);
+      pushAll(Array.isArray(r1.data?.data) ? r1.data.data : []);
 
-      // (1) 日本語フルネーム寄り: named(lang=ja) -> oracleid:
-      // 例: 「知りたがりの学徒、タミヨウ」など
-      if (isJaInput) {
-        const oid = await resolveJapaneseToOracleId(s);
-        if (oid) {
-          const rOid = await fetchSearch(`oracleid:${oid}`);
-          const arr = Array.isArray(rOid.data?.data) ? rOid.data.data : [];
-          pushAll(arr);
+      // 2) furigana parentheses tolerant
+      //    "量子の" -> name:/量(?:（…）)?子(?:（…）)?の/
+      if (merged.size === 0) {
+        const rx2 = buildFuriganaRegex(s);
+        if (rx2) {
+          const q2 = `lang:ja name:/${rx2}/`;
+          const r2 = await fetchSearch(q2);
+          pushAll(Array.isArray(r2.data?.data) ? r2.data.data : []);
         }
       }
 
-      // (2) 日本語部分一致: autocomplete -> named(lang=ja) -> oracleid:
-      if (isJaInput) {
-        const norm = normalizeJaNameForResolve(s);
-        if (norm.length >= 2 && merged.size === 0) {
-          const sug = await fetchAutocomplete(norm);
-          const MAX_TRY = 6;
-          for (const name of sug.slice(0, MAX_TRY)) {
-            const oid2 = await resolveJapaneseToOracleId(name);
-            if (!oid2) continue;
-            const rOid2 = await fetchSearch(`oracleid:${oid2}`);
-            const arr2 = Array.isArray(rOid2.data?.data) ? rOid2.data.data : [];
-            pushAll(arr2);
-          }
+      // 3) extra-loose fallback (only if still empty)
+      if (merged.size === 0) {
+        const rx2 = buildFuriganaRegex(s);
+        if (rx2) {
+          // allow any chars between tokens to absorb unexpected separators
+          const rxLoose = rx2.replace(/\\s\*/g, ".*?");
+          const q3 = `lang:ja name:/${rxLoose}/`;
+          const r3 = await fetchSearch(q3);
+          pushAll(Array.isArray(r3.data?.data) ? r3.data.data : []);
         }
-      }
-
-      // (3) preferJa: 日本語優先の「名前だけ」検索
-      // 重要: lang:ja ${s} のような曖昧検索は関係ないカードが混ざるので使わない
-      let jaHitCount = 0;
-
-      if (preferJa) {
-        const normName = normalizeJaNameForResolve(s); // ふりがな()除去 + 空白除去
-        const qName = `"${String(normName).replace(/"/g, '\\"')}"`;
-
-        // 最優先：ふりがな括弧を吸収する正規表現（日本語入力のときのみ）
-        if (isJaInput && normName) {
-          const rx = buildFuriganaRegex(normName);
-          if (rx) {
-            const r1 = await fetchSearch(`lang:ja name:/${rx}/`);
-            const a1 = Array.isArray(r1.data?.data) ? r1.data.data : [];
-            if (a1.length) {
-              jaHitCount += a1.length;
-              pushAll(a1);
-            }
-
-            // 次点：ゆるめ（空白や挟み込みが多いケース）
-            if (merged.size === 0) {
-              const rxLoose = rx.replace(/\\s\*/g, ".*?");
-              const r2 = await fetchSearch(`lang:ja name:/${rxLoose}/`);
-              const a2 = Array.isArray(r2.data?.data) ? r2.data.data : [];
-              if (a2.length) {
-                jaHitCount += a2.length;
-                pushAll(a2);
-              }
-            }
-          }
-        }
-
-        // 保険：name:"..."（名前のみフレーズ検索）
-        if (merged.size === 0 && normName) {
-          const r3 = await fetchSearch(`lang:ja name:${qName}`);
-          const a3 = Array.isArray(r3.data?.data) ? r3.data.data : [];
-          if (a3.length) {
-            jaHitCount += a3.length;
-            pushAll(a3);
-          }
-        }
-      }
-
-      // (4) Any language fallback（英語入力のみ）
-      // 日本語入力でこれをやると関係ないカードが混ざるのでやらない
-      if (!isJaInput) {
-        const rAny = await fetchSearch(s);
-        pushAll(Array.isArray(rAny.data?.data) ? rAny.data.data : []);
       }
 
       if (merged.size > 0) {
         let rawCards = Array.from(merged.values());
+        rawCards = applyCollapseSame(rawCards, s, preferJa, collapseSame);
+        let cards = rawCards.map(normalizeCard);
+        cards = sortResults(cards, s, preferJa);
+
+        state.results = cards;
+        renderResults();
+        setStatus(`ヒット: ${cards.length}件`);
+        return;
+      }
+
+      // Japanese input: do NOT fall back to broad search (prevents unrelated cards)
+      state.results = [];
+      renderResults();
+      setStatus("見つかりませんでした（日本語入力はカード名に限定して検索しています）");
+      return;
+    }
+
+    // Non-Japanese input (English etc): use normal search
+    {
+      const rAny = await fetchSearch(s);
+      const arr = Array.isArray(rAny.data?.data) ? rAny.data.data : [];
+      if (arr.length > 0) {
+        let rawCards = arr;
         rawCards = applyCollapseSame(rawCards, s, preferJa, collapseSame);
 
         let cards = rawCards.map(normalizeCard);
@@ -538,9 +477,7 @@
       state.results = [];
       renderResults();
       setStatus("見つかりませんでした");
-    } catch (err) {
-      console.error(err);
-      setStatus(`検索エラー: ${err?.message || String(err)}`);
+      return;
     }
   }
 
@@ -563,23 +500,26 @@
       const aName = a.sort_name || normalizeForSortName(a.name || "");
       const bName = b.sort_name || normalizeForSortName(b.name || "");
 
-      const aTypeOrder = typeof a.type_order === "number" ? a.type_order : primaryTypeOrder(a.type_line || "");
-      const bTypeOrder = typeof b.type_order === "number" ? b.type_order : primaryTypeOrder(b.type_line || "");
+      const aTypeOrder = (typeof a.type_order === "number") ? a.type_order : primaryTypeOrder(a.type_line || "");
+      const bTypeOrder = (typeof b.type_order === "number") ? b.type_order : primaryTypeOrder(b.type_line || "");
 
       const aCmc = Number(a.cmc ?? 0);
       const bCmc = Number(b.cmc ?? 0);
 
       if (mode === "type") {
+        // タイプ順 → MV → 名前
         if (aTypeOrder !== bTypeOrder) return aTypeOrder - bTypeOrder;
         if (aCmc !== bCmc) return aCmc - bCmc;
         const n = aName.localeCompare(bName, "ja");
         if (n !== 0) return n;
       } else if (mode === "cmc") {
+        // MV → タイプ順 → 名前
         if (aCmc !== bCmc) return aCmc - bCmc;
         if (aTypeOrder !== bTypeOrder) return aTypeOrder - bTypeOrder;
         const n = aName.localeCompare(bName, "ja");
         if (n !== 0) return n;
       } else {
+        // 名前 → タイプ順 → MV
         const n = aName.localeCompare(bName, "ja");
         if (n !== 0) return n;
         if (aTypeOrder !== bTypeOrder) return aTypeOrder - bTypeOrder;
@@ -968,124 +908,3 @@
       setCurrentDeckName("");
       state.deck = newEmptyDeck("");
       renderDeck();
-    }
-  }
-
-  function newDeck() {
-    state.deck = newEmptyDeck("");
-    setCurrentDeckName("");
-    renderDeck();
-    setStatus("新規デッキを作成しました");
-  }
-
-  // =========================
-  // Events
-  // =========================
-  $("btnSearch").onclick = () => searchCards($("q").value);
-
-  $("btnClear").onclick = () => {
-    $("q").value = "";
-    state.results = [];
-    renderResults();
-    setStatus("クリアしました");
-  };
-
-  $("q").addEventListener("keydown", (e) => {
-    if (e.key === "Enter") searchCards($("q").value);
-  });
-
-  $("order").addEventListener("change", () => {
-    if ($("q").value.trim()) searchCards($("q").value);
-  });
-
-  $("preferJa").addEventListener("change", () => {
-    if ($("q").value.trim()) searchCards($("q").value);
-  });
-
-  $("collapseSame").addEventListener("change", () => {
-    if ($("q").value.trim()) searchCards($("q").value);
-  });
-
-  $("viewMode").addEventListener("change", () => setSearchView($("viewMode").value));
-
-  $("toggleMain").onclick = () => {
-    state.boardCollapsed.main = !state.boardCollapsed.main;
-    renderDeck();
-  };
-
-  $("toggleSide").onclick = () => {
-    state.boardCollapsed.side = !state.boardCollapsed.side;
-    renderDeck();
-  };
-
-  $("btnClearBoards").onclick = () => {
-    if (!confirm("Main/Side を全消しします。よろしいですか？")) return;
-    clearBoards();
-  };
-
-  $("btnOpenSettings").onclick = openSettingsModal;
-  $("closeCardModal").onclick = closeCardModal;
-  $("closeSettingsModal").onclick = closeSettingsModal;
-
-  $("cardModalOverlay").addEventListener("click", (e) => {
-    if (e.target === $("cardModalOverlay")) closeCardModal();
-  });
-
-  $("settingsModalOverlay").addEventListener("click", (e) => {
-    if (e.target === $("settingsModalOverlay")) closeSettingsModal();
-  });
-
-  $("btnSaveDeck").onclick = saveCurrentDeck;
-
-  $("btnNewDeck").onclick = () => {
-    if (!confirm("新規デッキを作成します（未保存の変更は失われます）。よろしいですか？"))
-      return;
-    newDeck();
-  };
-
-  $("btnLoadDeck").onclick = () => {
-    const name = $("deckSelect").value;
-    if (!name) {
-      setStatus("読み込むデッキを選択してください");
-      return;
-    }
-    loadDeckByName(name);
-    closeSettingsModal();
-  };
-
-  $("btnDeleteDeck").onclick = () => {
-    const name = $("deckSelect").value || state.currentDeckName;
-    if (!name) {
-      setStatus("削除するデッキを選択してください");
-      return;
-    }
-    if (!confirm(`デッキ「${name}」を削除します。よろしいですか？`)) return;
-    deleteDeckByName(name);
-  };
-
-  const cleanupBtn = $("btnCleanupZeros");
-  if (cleanupBtn) {
-    cleanupBtn.onclick = () => {
-      cleanupZeros();
-      renderDeck();
-      setStatus("0枚カードを掃除しました");
-    };
-  }
-
-  $("sortDeck").addEventListener("change", renderDeck);
-
-  // =========================
-  // Init
-  // =========================
-  $("verBadge").textContent = `ver ${APP_VERSION}`;
-  loadStore();
-  refreshDeckSelect();
-
-  setCurrentDeckName("");
-  renderResults();
-  renderDeck();
-  setStatus("待機中");
-  setSearchView(searchView);
-  syncViewFromHash();
-})();
-
