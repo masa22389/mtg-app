@@ -234,6 +234,7 @@
 
   async function fetchSearch(q) {
     const url = new URL("https://api.scryfall.com/cards/search");
+    console.log("[Scryfall q]", q);
     url.searchParams.set("q", q);
     url.searchParams.set("unique", "prints");
     url.searchParams.set("order", $("order").value);
@@ -1087,3 +1088,4 @@
   setSearchView(searchView);
   syncViewFromHash();
 })();
+
