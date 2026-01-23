@@ -3,7 +3,10 @@
    - Prefer Japanese printing
    - Collapse same (latest printing)
    - Deck builder (Main/Side) with modal ops
-   - Fix: Furigana-in-parentheses Japanese name search (（） and () + spaces)
+   - Fix: Japanese name search
+     - Furigana-in-parentheses Japanese name (（） and () + spaces)
+     - Japanese printed_name even when oracle name is English:
+       resolve by /cards/named?lang=ja => oracle_id, then search by oracleid:
 */
 
 (() => {
@@ -12,7 +15,7 @@
   const $ = (id) => document.getElementById(id);
 
   // ===== Version =====
-  const APP_VERSION = "0.0.3";
+  const APP_VERSION = "0.0.4";
 
   // ===== Search view mode (grid/list) =====
   const SEARCH_VIEW_KEY = "mtg_search_view";
@@ -176,8 +179,8 @@
       id: card.id,
       oracle_id: card.oracle_id,
       name: displayName, // 表示名（日本語優先）
-      sort_name: normalizeForSortName(displayName), // ★追加：ソート用
-      type_order: primaryTypeOrder(displayType),     // ★追加：タイプ順用
+      sort_name: normalizeForSortName(displayName), // ソート用
+      type_order: primaryTypeOrder(displayType), // タイプ順用
       en_name: card.name || "",
       set: (card.set || "").toUpperCase(),
       collector: card.collector_number || "",
@@ -199,6 +202,28 @@
     const res = await fetch(url.toString(), { headers: { Accept: "application/json" } });
     const data = await res.json().catch(() => ({}));
     return { ok: res.ok, data, status: res.status };
+  }
+
+  // NEW: /cards/named で日本語印刷名 → oracle_id 解決（printed_name検索の弱さを回避）
+  function normalizeJaNameForResolve(s) {
+    return String(s || "")
+      .replace(/[（(][^）)]*[）)]/g, "") // 括弧内（ふりがな等）を除去
+      .replace(/[\s　]+/g, "") // 半角/全角スペース除去
+      .trim();
+  }
+
+  async function resolveJapaneseToOracleId(input) {
+    const norm = normalizeJaNameForResolve(input);
+    if (!norm) return null;
+
+    const url = new URL("https://api.scryfall.com/cards/named");
+    url.searchParams.set("fuzzy", norm);
+    url.searchParams.set("lang", "ja");
+
+    const res = await fetch(url.toString(), { headers: { Accept: "application/json" } });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return null;
+    return data?.oracle_id || null;
   }
 
   function dateKey(d) {
@@ -280,7 +305,7 @@
         if (aj !== bj) return aj - bj;
       }
 
-      if (aname !== bname) return aname.localeCompare(bname);
+      if (aname !== bname) return aname.localeCompare(bname, "ja");
 
       const ad = dateKey(a.released_at);
       const bd = dateKey(b.released_at);
@@ -292,7 +317,7 @@
   }
 
   // =========================
-  // Furigana-in-parentheses fix
+  // Furigana-in-parentheses fix (regex fallback)
   // =========================
   function escapeRegex(s) {
     return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -307,17 +332,13 @@
     const chars = Array.from(trimmed).filter((ch) => ch !== " " && ch !== "　");
     if (chars.length === 0) return "";
 
-    // bracket group: ( ... ) or （ ... ）
     const BR = "(?:\\(|（)[^\\)）]*(?:\\)|）)";
 
-    // each char: <char> [ optional spaces + optional bracket group ]
-    // and allow spaces between tokens
     const parts = chars.map((ch) => {
       const c = escapeRegex(ch);
       return `${c}(?:\\s*${BR})?`;
     });
 
-    // allow whitespace between each token too
     return parts.join("\\s*");
   }
 
@@ -364,30 +385,43 @@
       return;
     }
 
-    // Normal: prefer ja + furigana-regex fallback + any language fallback
+    // Normal:
+    // 1) Japanese input -> resolve /cards/named?lang=ja => oracle_id, then search oracleid:
+    // 2) preferJa lang:ja search
+    // 3) furigana regex fallback
+    // 4) any language fallback
     const merged = new Map();
     const pushAll = (arr) => {
       for (const c of arr) merged.set(c.id, c);
     };
 
+    // (1) oracle_id resolver
+    if (looksJapanese(s)) {
+      const oid = await resolveJapaneseToOracleId(s);
+      if (oid) {
+        const rOid = await fetchSearch(`oracleid:${oid}`);
+        const arr = Array.isArray(rOid.data?.data) ? rOid.data.data : [];
+        pushAll(arr);
+      }
+    }
+
     let jaHitCount = 0;
 
+    // (2) prefer lang:ja search
     if (preferJa) {
       const rJa = await fetchSearch(`lang:ja ${s}`);
       const jaArr = Array.isArray(rJa.data?.data) ? rJa.data.data : [];
       jaHitCount = jaArr.length;
       pushAll(jaArr);
 
-      // Furigana fallback: only when japanese query and no hit
+      // (3) furigana regex fallback: only when japanese query and no hit
       if (jaHitCount === 0 && looksJapanese(s)) {
         const rx = buildFuriganaRegex(s);
         if (rx) {
-          // name:/.../ は printed_name にも効くケースが多い（効かない場合もあるが現実的に最善）
           const rRx = await fetchSearch(`lang:ja name:/${rx}/`);
           const rxArr = Array.isArray(rRx.data?.data) ? rRx.data.data : [];
           pushAll(rxArr);
 
-          // さらに念のため: printed_nameのようにスペース混入がある場合に備え、ゆるくもう一段
           if (merged.size === 0) {
             const rxLoose = rx.replace(/\\s\*/g, ".*?");
             const rRx2 = await fetchSearch(`lang:ja name:/${rxLoose}/`);
@@ -398,7 +432,7 @@
       }
     }
 
-    // Any language fallback
+    // (4) Any language fallback
     const rAny = await fetchSearch(s);
     pushAll(Array.isArray(rAny.data?.data) ? rAny.data.data : []);
 
@@ -426,25 +460,20 @@
   const TYPE_ORDER = ["Land", "Creature", "Instant", "Sorcery", "Artifact", "Enchantment", "Planeswalker"];
 
   function normalizeForSortName(s) {
-    // 例: 量（りょう）子（し）… -> 量子…
-    // 全角/半角括弧を除去し、記号/空白ゆれを軽く吸収
     return String(s || "")
       .replace(/\s+/g, " ")
-      .replace(/[（(][^）)]*[）)]/g, "")   // 括弧内（ふりがな等）を除去
+      .replace(/[（(][^）)]*[）)]/g, "") // 括弧内（ふりがな等）を除去
       .replace(/[・･]/g, "")
       .trim();
   }
 
   function primaryTypeOrder(typeLine) {
-    // typeLine例: "Artifact Creature — Golem"
-    // 左側（—より前）から TYPE_ORDER 優先でマッチしたものを primary とする
     const left = String(typeLine || "").split("—")[0] || "";
     const tokens = left.split(/\s+/).filter(Boolean);
 
     for (let i = 0; i < TYPE_ORDER.length; i++) {
       if (tokens.includes(TYPE_ORDER[i])) return i;
     }
-    // どれにも当たらない（Battle等）場合は最後
     return TYPE_ORDER.length;
   }
 
@@ -464,38 +493,32 @@
     const mode = $("sortDeck")?.value || "name"; // "name" | "cmc" | "type"
 
     arr.sort((a, b) => {
-      // --- ソート用のフォールバック（過去データ互換） ---
       const aName = a.sort_name || normalizeForSortName(a.name || "");
       const bName = b.sort_name || normalizeForSortName(b.name || "");
 
-      const aTypeOrder = (typeof a.type_order === "number") ? a.type_order : primaryTypeOrder(a.type_line || "");
-      const bTypeOrder = (typeof b.type_order === "number") ? b.type_order : primaryTypeOrder(b.type_line || "");
+      const aTypeOrder = typeof a.type_order === "number" ? a.type_order : primaryTypeOrder(a.type_line || "");
+      const bTypeOrder = typeof b.type_order === "number" ? b.type_order : primaryTypeOrder(b.type_line || "");
 
       const aCmc = Number(a.cmc ?? 0);
       const bCmc = Number(b.cmc ?? 0);
 
-      // --- モード別キー ---
       if (mode === "type") {
-        // タイプ順 → MV → 名前
         if (aTypeOrder !== bTypeOrder) return aTypeOrder - bTypeOrder;
         if (aCmc !== bCmc) return aCmc - bCmc;
         const n = aName.localeCompare(bName, "ja");
         if (n !== 0) return n;
       } else if (mode === "cmc") {
-        // MV → タイプ順 → 名前
         if (aCmc !== bCmc) return aCmc - bCmc;
         if (aTypeOrder !== bTypeOrder) return aTypeOrder - bTypeOrder;
         const n = aName.localeCompare(bName, "ja");
         if (n !== 0) return n;
       } else {
-        // 名前 → タイプ順 → MV（任意だけど安定する）
         const n = aName.localeCompare(bName, "ja");
         if (n !== 0) return n;
         if (aTypeOrder !== bTypeOrder) return aTypeOrder - bTypeOrder;
         if (aCmc !== bCmc) return aCmc - bCmc;
       }
 
-      // 最終安定キー（並びがブレないように）
       return String(a.id || "").localeCompare(String(b.id || ""));
     });
 
@@ -776,7 +799,6 @@
 
     $("cardModalTitle").textContent = `${board === "main" ? "Main" : "Side"}のカード操作`;
 
-    // 要望：カード名の下の「USG #174 / ja / 1998-...」行は出さない
     body.innerHTML = `
       <div class="cardModalRow">
         <img src="${safe.image || ""}" alt="">
@@ -974,8 +996,6 @@
     deleteDeckByName(name);
   };
 
-  // 0枚掃除ボタンはindex.html側から消す想定だけど、
-  // もし残っていても動くようにしておく
   const cleanupBtn = $("btnCleanupZeros");
   if (cleanupBtn) {
     cleanupBtn.onclick = () => {
@@ -1001,4 +1021,3 @@
   setSearchView(searchView);
   syncViewFromHash();
 })();
-
